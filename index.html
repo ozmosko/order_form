@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>טופס הזמנה</title>
+
+    <!-- Bootstrap 5 CSS RTL -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.rtl.min.css" rel="stylesheet">
+
+    <!-- Select2 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet">
+
+    <!-- Font Awesome -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+
+    <!-- Custom Styles -->
+    <link href="styles.css" rel="stylesheet">
+</head>
+<body>
+    <!-- Demo Mode Banner -->
+    <div id="demoBanner" class="demo-banner">
+        <i class="fas fa-flask me-1"></i>
+        מצב הדגמה - משתמש בנתונים לדוגמה. הגדר כתובות Power Automate בקובץ config.js לייצור.
+    </div>
+
+    <!-- Password Overlay -->
+    <div id="passwordOverlay" class="password-overlay" style="display: none;">
+        <div class="password-modal">
+            <h2><i class="fas fa-lock me-2"></i>נדרשת גישה</h2>
+            <form id="passwordForm">
+                <div class="mb-3">
+                    <input type="password"
+                           id="passwordInput"
+                           class="form-control form-control-lg"
+                           placeholder="הזן סיסמה"
+                           autocomplete="current-password"
+                           required>
+                    <div id="passwordError" class="password-error">
+                        <i class="fas fa-exclamation-circle me-1"></i>
+                        סיסמה שגויה. נסה שוב.
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-primary btn-lg w-100">
+                    <i class="fas fa-sign-in-alt me-2"></i>כניסה
+                </button>
+            </form>
+            <p class="mt-3 mb-0 text-muted small">
+                <i class="fas fa-info-circle me-1"></i>
+                פנה למנהל המערכת אם אין לך גישה.
+            </p>
+        </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="loading-overlay">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">טוען...</div>
+    </div>
+
+    <!-- Alert Container -->
+    <div id="alertContainer" class="alert-container"></div>
+
+    <!-- Main Container -->
+    <div id="mainContainer" class="main-container container-fluid">
+        <div class="form-card">
+            <!-- Header -->
+            <div class="app-header">
+                <div>
+                    <h1><i class="fas fa-clipboard-list me-2"></i>טופס הזמנה</h1>
+                    <p class="subtitle mb-0">יצירת הזמנה חדשה ללקוח</p>
+                </div>
+                <button id="logoutBtn" class="btn btn-outline-secondary btn-logout">
+                    <i class="fas fa-sign-out-alt me-1"></i>יציאה
+                </button>
+            </div>
+
+            <form id="orderForm">
+                <!-- Employee Name -->
+                <div class="employee-section">
+                    <div class="section-header">
+                        <h2><i class="fas fa-id-badge me-2"></i>שם העובד</h2>
+                    </div>
+                    <input type="text" id="employeeName" class="form-control"
+                           placeholder="הזן את שמך..." required>
+                </div>
+
+                <!-- Customer Selection -->
+                <div class="customer-section">
+                    <div class="section-header">
+                        <h2><i class="fas fa-user me-2"></i>לקוח</h2>
+                    </div>
+                    <select id="customerSelect" class="form-select" required>
+                        <option value="">טוען לקוחות...</option>
+                    </select>
+                    <div id="customerInfo" class="mt-2" style="display: none;"></div>
+                </div>
+
+                <!-- Products Section -->
+                <div class="products-section">
+                    <div class="section-header">
+                        <h2><i class="fas fa-box me-2"></i>מוצרים</h2>
+                    </div>
+
+                    <div id="emptyProducts" class="empty-products" style="display: none;">
+                        <i class="fas fa-shopping-cart fa-2x mb-2"></i>
+                        <p class="mb-0">עדיין לא נוספו מוצרים.<br>לחץ על הכפתור למטה להוספת מוצרים.</p>
+                    </div>
+
+                    <div id="productRows" class="product-rows">
+                        <!-- Product rows will be added here dynamically -->
+                    </div>
+
+                    <button type="button" id="addProductBtn" class="btn btn-outline-primary btn-add-product">
+                        <i class="fas fa-plus me-2"></i>הוסף מוצר
+                    </button>
+                </div>
+
+                <!-- Order Summary -->
+                <div class="order-summary-section mb-3">
+                    <div class="section-header">
+                        <h2><i class="fas fa-receipt me-2"></i>סיכום</h2>
+                    </div>
+                    <div id="orderSummary" class="order-summary">
+                        <div class="summary-row">
+                            <span>לקוח:</span>
+                            <span><em>לא נבחר</em></span>
+                        </div>
+                        <div class="summary-row">
+                            <span>מוצרים:</span>
+                            <span>0 סוגים</span>
+                        </div>
+                        <div class="summary-row total">
+                            <span>סה"כ פריטים:</span>
+                            <span>0</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Notes -->
+                <div class="notes-section">
+                    <div class="section-header">
+                        <h2><i class="fas fa-sticky-note me-2"></i>הערות</h2>
+                    </div>
+                    <textarea id="orderNotes"
+                              class="form-control"
+                              rows="3"
+                              placeholder="הוסף הוראות מיוחדות או הערות להזמנה זו..."></textarea>
+                </div>
+
+                <!-- Submit Button -->
+                <button type="submit" class="btn btn-success btn-submit">
+                    <i class="fas fa-paper-plane me-2"></i>שלח הזמנה
+                </button>
+            </form>
+        </div>
+
+        <!-- Footer -->
+        <div class="app-footer">
+            <p class="mb-0">
+                <i class="fas fa-info-circle me-1"></i>
+                הזמנות נשמרות ל-SharePoint באופן אוטומטי
+            </p>
+        </div>
+    </div>
+
+    <!-- jQuery (required for Select2) -->
+    <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
+
+    <!-- Bootstrap 5 JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- Select2 JS -->
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+    <!-- CryptoJS for password hashing -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.2.0/crypto-js.min.js"></script>
+
+    <!-- App Configuration -->
+    <script src="config.js"></script>
+
+    <!-- App JavaScript -->
+    <script src="app.js"></script>
+</body>
+</html>

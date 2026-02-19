@@ -126,7 +126,8 @@
 
             <div class="mb-3">
                 <input type="text" id="customerSearch" class="form-control"
-                       placeholder="חיפוש לפי שם לקוח...">
+                       placeholder="חיפוש לפי שם לקוח או קוד לקוח...">
+                <div id="searchResultCount" class="form-text mt-1" style="display: none;"></div>
             </div>
 
             <div class="table-responsive">
@@ -342,11 +343,19 @@
             // Search
             document.getElementById('customerSearch').addEventListener('input', e => {
                 const q = e.target.value.trim().toLowerCase();
-                renderRows(q
+                const filtered = q
                     ? allCustomers.filter(c =>
                         c.name.toLowerCase().includes(q) ||
                         String(c.id).toLowerCase().includes(q))
-                    : allCustomers);
+                    : allCustomers;
+                renderRows(filtered);
+                const countEl = document.getElementById('searchResultCount');
+                if (q) {
+                    countEl.textContent = `נמצאו ${filtered.length} תוצאות`;
+                    countEl.style.display = 'block';
+                } else {
+                    countEl.style.display = 'none';
+                }
             });
 
             // Settings button

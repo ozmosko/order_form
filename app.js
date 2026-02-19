@@ -5,20 +5,59 @@ class OrderForm {
         this.customers = [];
         this.productRowCount = 0;
         this.isAuthenticated = false;
+        this.customerMode = false;
+        this.prefilledCustomer = null;
+
+        const params = new URLSearchParams(window.location.search);
+        const customerId = params.get('customerId');
+        const customerName = params.get('customerName');
+        if (customerId && customerName) {
+            this.customerMode = true;
+            this.prefilledCustomer = { id: customerId, name: customerName };
+        }
+
+        // If the link contains an encoded webhook URL, save it to localStorage
+        const wh = params.get('wh');
+        if (wh) {
+            try {
+                const webhookUrl = atob(wh);
+                const stored = localStorage.getItem('orderFormEndpoints');
+                const endpoints = stored ? JSON.parse(stored) : {};
+                endpoints.webhookUrl = webhookUrl;
+                localStorage.setItem('orderFormEndpoints', JSON.stringify(endpoints));
+            } catch (e) {
+                console.error('Failed to decode webhook URL from link', e);
+            }
+        }
 
         this.init();
     }
 
     init() {
-        // Check if already authenticated
+        this.loadEndpointsFromStorage();
         this.checkAuthentication();
-
-        // Initialize event listeners
         this.setupEventListeners();
 
-        // Show demo banner if in demo mode
-        if (CONFIG.demoMode) {
+        // Only show demo banner in employee mode
+        if (CONFIG.demoMode && !this.customerMode) {
             document.getElementById('demoBanner').classList.add('visible');
+        }
+    }
+
+    loadEndpointsFromStorage() {
+        const stored = localStorage.getItem('orderFormEndpoints');
+        if (!stored) return;
+        try {
+            const endpoints = JSON.parse(stored);
+            if (endpoints.getCustomers) {
+                CONFIG.endpoints.getCustomers = endpoints.getCustomers;
+                CONFIG.demoMode = false;
+            }
+            if (endpoints.webhookUrl) {
+                CONFIG.webhookUrl = endpoints.webhookUrl;
+            }
+        } catch (e) {
+            console.error('Failed to parse stored endpoints', e);
         }
     }
 
@@ -26,29 +65,36 @@ class OrderForm {
     checkAuthentication() {
         const authData = localStorage.getItem('orderFormAuth');
         if (authData) {
-            const { timestamp, hash } = JSON.parse(authData);
+            const { timestamp, hash, mode = 'employee', customerId = null } = JSON.parse(authData);
             const now = Date.now();
+            const expectedHash = this.customerMode ? CONFIG.customerPasswordHash : CONFIG.passwordHash;
+            const expectedMode = this.customerMode ? 'customer' : 'employee';
+            const customerMatches = !this.customerMode ||
+                String(customerId) === String(this.prefilledCustomer.id);
 
-            // Check if session is still valid
-            if (now - timestamp < CONFIG.sessionTimeout && hash === CONFIG.passwordHash) {
+            if (now - timestamp < CONFIG.sessionTimeout &&
+                hash === expectedHash &&
+                mode === expectedMode &&
+                customerMatches) {
                 this.isAuthenticated = true;
                 this.showMainContent();
                 return;
             }
         }
 
-        // Show password modal
         document.getElementById('passwordOverlay').style.display = 'flex';
     }
 
     verifyPassword(password) {
         const hash = CryptoJS.SHA256(password).toString();
+        const expectedHash = this.customerMode ? CONFIG.customerPasswordHash : CONFIG.passwordHash;
 
-        if (hash === CONFIG.passwordHash) {
-            // Store authentication
+        if (hash === expectedHash) {
             localStorage.setItem('orderFormAuth', JSON.stringify({
                 timestamp: Date.now(),
-                hash: hash
+                hash: hash,
+                mode: this.customerMode ? 'customer' : 'employee',
+                customerId: this.customerMode ? this.prefilledCustomer.id : null
             }));
 
             this.isAuthenticated = true;
@@ -68,8 +114,23 @@ class OrderForm {
 
     showMainContent() {
         document.getElementById('mainContainer').classList.add('visible');
+
+        if (this.customerMode) {
+            document.getElementById('customerSelectWrapper').style.display = 'none';
+            const fixed = document.getElementById('customerFixed');
+            fixed.style.display = 'block';
+            fixed.innerHTML = `
+                <div class="p-2 border rounded bg-light">
+                    <i class="fas fa-building me-2 text-primary"></i>
+                    <strong>${this.prefilledCustomer.name}</strong>
+                    <small class="text-muted ms-2">
+                        <i class="fas fa-hashtag me-1"></i>${this.prefilledCustomer.id}
+                    </small>
+                </div>`;
+        }
+
         this.loadCustomers();
-        this.addProductRow(); // Add first empty row
+        this.addProductRow();
     }
 
     // Customer Loading
@@ -77,15 +138,25 @@ class OrderForm {
         this.showLoading('טוען לקוחות...');
 
         try {
-            if (CONFIG.demoMode) {
-                // Use mock data
+            if (this.customerMode) {
+                this.customers = [this.prefilledCustomer];
+            } else if (CONFIG.demoMode) {
                 await this.simulateDelay(500);
                 this.customers = DEMO_CUSTOMERS;
             } else {
-                // Fetch from Power Automate
-                const response = await fetch(CONFIG.endpoints.getCustomers);
+                const response = await fetch(CONFIG.endpoints.getCustomers, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({})
+                });
                 if (!response.ok) throw new Error('Failed to load customers');
-                this.customers = await response.json();
+                const raw = await response.json();
+                this.customers = raw.map(c => ({
+                    id:      c.AccountKey  ?? c.id,
+                    name:    c.FullName    ?? c.name,
+                    contact: c.contact     || '',
+                    email:   c.email       || ''
+                }));
             }
 
             this.populateCustomerDropdown();
@@ -100,10 +171,8 @@ class OrderForm {
     populateCustomerDropdown() {
         const select = document.getElementById('customerSelect');
 
-        // Clear existing options
         select.innerHTML = '<option value="">בחר לקוח...</option>';
 
-        // Add customer options
         this.customers.forEach(customer => {
             const option = document.createElement('option');
             option.value = customer.id;
@@ -112,6 +181,12 @@ class OrderForm {
             option.dataset.email = customer.email || '';
             select.appendChild(option);
         });
+
+        // In customer mode: auto-select and skip Select2
+        if (this.customerMode) {
+            select.value = this.prefilledCustomer.id;
+            return;
+        }
 
         // Initialize Select2 with RTL support
         $(select).select2({
@@ -142,18 +217,15 @@ class OrderForm {
             const contact = selectedOption.dataset.contact;
             const email = selectedOption.dataset.email;
 
-            if (contact || email) {
-                customerInfo.innerHTML = `
-                    <small class="text-muted">
-                        ${contact ? `<i class="fas fa-user me-1"></i>${contact}` : ''}
-                        ${contact && email ? ' | ' : ''}
-                        ${email ? `<i class="fas fa-envelope me-1"></i>${email}` : ''}
-                    </small>
-                `;
-                customerInfo.style.display = 'block';
-            } else {
-                customerInfo.style.display = 'none';
-            }
+            const id = selectedOption.value;
+            const parts = [
+                `<i class="fas fa-hashtag me-1"></i>${id}`,
+                contact ? `<i class="fas fa-user me-1"></i>${contact}` : '',
+                email   ? `<i class="fas fa-envelope me-1"></i>${email}` : ''
+            ].filter(Boolean).join(' | ');
+
+            customerInfo.innerHTML = `<small class="text-muted">${parts}</small>`;
+            customerInfo.style.display = 'block';
         } else {
             customerInfo.style.display = 'none';
         }
@@ -323,6 +395,23 @@ class OrderForm {
         return errors;
     }
 
+    // Webhook
+    async triggerWebhook(orderData) {
+        if (!CONFIG.webhookUrl) return;
+
+        try {
+            const response = await fetch(CONFIG.webhookUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(orderData)
+            });
+            if (!response.ok) throw new Error(`Webhook responded with ${response.status}`);
+        } catch (error) {
+            console.error('Webhook error:', error);
+            return error;
+        }
+    }
+
     // Form Submission
     async submitOrder() {
         // Validate form
@@ -343,24 +432,24 @@ class OrderForm {
             // Gather order data
             const orderData = this.gatherOrderData();
 
-            if (CONFIG.demoMode) {
-                // Simulate submission
-                await this.simulateDelay(1000);
-                console.log('Order submitted (demo mode):', orderData);
-            } else {
-                // Submit to Power Automate
+            const hasSaveUrl = CONFIG.endpoints.saveOrder &&
+                !CONFIG.endpoints.saveOrder.startsWith('YOUR_');
+
+            if (!CONFIG.demoMode && hasSaveUrl) {
                 const response = await fetch(CONFIG.endpoints.saveOrder, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(orderData)
                 });
-
                 if (!response.ok) throw new Error('Failed to submit order');
             }
 
-            this.showAlert('ההזמנה נשלחה בהצלחה!', 'success');
+            const webhookError = await this.triggerWebhook(orderData);
+            if (webhookError) {
+                this.showAlert('ההזמנה נשלחה בהצלחה, אך שליחת ה-webhook נכשלה', 'warning');
+            } else {
+                this.showAlert('ההזמנה נשלחה בהצלחה!', 'success');
+            }
             this.resetForm();
         } catch (error) {
             console.error('Error submitting order:', error);

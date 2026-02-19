@@ -8,10 +8,14 @@ const CONFIG = {
         saveOrder: 'YOUR_POWER_AUTOMATE_SAVE_ORDER_URL_HERE'
     },
 
-    // האש סיסמה (SHA-256)
+    // האש סיסמת עובדים (SHA-256)
     // סיסמת ברירת מחדל היא "123" - שנה זאת בייצור!
     // ליצירת האש חדש: console.log(CryptoJS.SHA256('הסיסמה-שלך').toString())
     passwordHash: 'a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3',
+
+    // האש סיסמת לקוחות (SHA-256) - משמשת לטפסים האישיים של הלקוחות
+    // סיסמת ברירת מחדל היא "123" - שנה זאת לפני שיתוף עם לקוחות!
+    customerPasswordHash: 'a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3',
 
     // רשימת מוצרים
     products: [
@@ -23,6 +27,10 @@ const CONFIG = {
 
     // זמן פקיעת הפעלה במילישניות (ברירת מחדל: 8 שעות)
     sessionTimeout: 8 * 60 * 60 * 1000,
+
+    // כתובת webhook שתופעל לאחר כל שליחת הזמנה מוצלחת
+    // מוגדר דרך admin.html ונשמר ב-localStorage - אין להכניס כאן את הכתובת
+    webhookUrl: '',
 
     // הפעל מצב הדגמה (משתמש בנתונים מדומים במקום Power Automate)
     demoMode: true

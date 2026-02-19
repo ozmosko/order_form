@@ -66,6 +66,10 @@
     <div id="mainContainer" class="main-container container-fluid">
         <div class="form-card">
             <!-- Header -->
+            <div class="text-center mb-3">
+                <img src="nitank_logo.jpeg" alt="לוגו" style="height: 72px; width: auto;">
+            </div>
+
             <div class="app-header">
                 <div>
                     <h1><i class="fas fa-clipboard-list me-2"></i>טופס הזמנה</h1>
@@ -91,9 +95,12 @@
                     <div class="section-header">
                         <h2><i class="fas fa-user me-2"></i>לקוח</h2>
                     </div>
-                    <select id="customerSelect" class="form-select" required>
-                        <option value="">טוען לקוחות...</option>
-                    </select>
+                    <div id="customerSelectWrapper">
+                        <select id="customerSelect" class="form-select" required>
+                            <option value="">טוען לקוחות...</option>
+                        </select>
+                    </div>
+                    <div id="customerFixed" style="display: none;"></div>
                     <div id="customerInfo" class="mt-2" style="display: none;"></div>
                 </div>
 
@@ -179,6 +186,9 @@
 
     <!-- App Configuration -->
     <script src="config.js"></script>
+
+    <!-- Local overrides (gitignored) - paste real URLs here -->
+    <script src="config.local.js"></script>
 
     <!-- App JavaScript -->
     <script src="app.js"></script>

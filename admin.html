@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>מנהל - יצירת קישורים ללקוחות</title>
+
+    <!-- Bootstrap 5 CSS RTL -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.rtl.min.css" rel="stylesheet">
+
+    <!-- Font Awesome -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+
+    <!-- App Styles -->
+    <link href="styles.css" rel="stylesheet">
+</head>
+<body>
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="loading-overlay">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">טוען...</div>
+    </div>
+
+    <!-- Password Overlay -->
+    <div id="passwordOverlay" class="password-overlay" style="display: none;">
+        <div class="password-modal">
+            <h2><i class="fas fa-lock me-2"></i>גישת מנהל</h2>
+            <form id="passwordForm">
+                <div class="mb-3">
+                    <input type="password"
+                           id="passwordInput"
+                           class="form-control form-control-lg"
+                           placeholder="הזן סיסמת עובד"
+                           autocomplete="current-password"
+                           required>
+                    <div id="passwordError" class="password-error">
+                        <i class="fas fa-exclamation-circle me-1"></i>
+                        סיסמה שגויה. נסה שוב.
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-primary btn-lg w-100">
+                    <i class="fas fa-sign-in-alt me-2"></i>כניסה
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Webhook Setup Overlay -->
+    <div id="setupOverlay" class="password-overlay" style="display: none;">
+        <div class="password-modal">
+            <h2><i class="fas fa-cog me-2"></i>הגדרת Webhook</h2>
+            <p class="text-muted small mb-3">
+                הכתובת נשמרת בדפדפן בלבד ואינה נשמרת בקובץ.
+            </p>
+            <form id="setupForm">
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Webhook לטעינת רשימת לקוחות</label>
+                    <input type="text"
+                           id="webhookGetCustomers"
+                           class="form-control"
+                           placeholder="https://..."
+                           required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Webhook לשמירת הזמנות (Make.com)</label>
+                    <input type="text"
+                           id="webhookSaveOrder"
+                           class="form-control"
+                           placeholder="https://..."
+                           required>
+                    <div class="form-text">כתובת זו תוטמע בקישורים של הלקוחות באופן אוטומטי.</div>
+                </div>
+                <button type="submit" class="btn btn-primary btn-lg w-100">
+                    <i class="fas fa-save me-2"></i>שמור
+                </button>
+                <button type="button" class="btn btn-outline-secondary w-100 mt-2"
+                        onclick="document.getElementById('setupOverlay').style.display='none'">
+                    ביטול
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div id="mainContainer" class="main-container container-fluid">
+        <div class="form-card">
+
+            <!-- Header -->
+            <div class="text-center mb-3">
+                <img src="nitank_logo.jpeg" alt="לוגו" style="height: 72px; width: auto;">
+            </div>
+
+            <div class="app-header">
+                <div>
+                    <h1><i class="fas fa-link me-2"></i>יצירת קישורים ללקוחות</h1>
+                    <p class="subtitle mb-0">צור קישור אישי לכל לקוח ושלח אליו</p>
+                </div>
+                <div class="d-flex gap-2 flex-wrap">
+                    <button id="settingsBtn" class="btn btn-outline-secondary btn-logout">
+                        <i class="fas fa-cog me-1"></i>Webhook
+                    </button>
+                    <a href="index.html" class="btn btn-outline-primary btn-logout">
+                        <i class="fas fa-clipboard-list me-1"></i>טופס הזמנה
+                    </a>
+                </div>
+            </div>
+
+            <!-- Customer Password Info -->
+            <div class="alert alert-info mb-4">
+                <i class="fas fa-key me-2"></i>
+                <strong>סיסמת לקוחות:</strong>
+                מוגדרת בקובץ <code>config.js</code> תחת <code>customerPasswordHash</code>.
+                לשינוי: פתח את הקונסול בדפדפן והרץ
+                <code>console.log(CryptoJS.SHA256('הסיסמה-החדשה').toString())</code>,
+                אז עדכן את הערך בקובץ.
+            </div>
+
+            <!-- Customers Table -->
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h3 class="mb-0">רשימת לקוחות</h3>
+                <button id="refreshBtn" class="btn btn-outline-secondary btn-sm">
+                    <i class="fas fa-sync-alt me-1"></i>רענן
+                </button>
+            </div>
+
+            <div class="mb-3">
+                <input type="text" id="customerSearch" class="form-control"
+                       placeholder="חיפוש לפי שם לקוח...">
+            </div>
+
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>שם לקוח</th>
+                            <th>קוד לקוח</th>
+                            <th style="width: 100px;">פעולות</th>
+                        </tr>
+                    </thead>
+                    <tbody id="customerTableBody">
+                        <tr>
+                            <td colspan="3" class="text-center text-muted py-4">
+                                <i class="fas fa-spinner fa-spin me-2"></i>טוען...
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- jQuery -->
+    <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- CryptoJS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.2.0/crypto-js.min.js"></script>
+    <!-- Config -->
+    <script src="config.js"></script>
+
+    <script>
+        const ENDPOINTS_KEY = 'orderFormEndpoints';
+        const AUTH_KEY     = 'orderFormAdminAuth';
+
+        // ── Storage helpers ──────────────────────────────────────────────
+        function getEndpoints() {
+            try {
+                return JSON.parse(localStorage.getItem(ENDPOINTS_KEY)) || {};
+            } catch (e) { return {}; }
+        }
+
+        function getWebhookUrl() {
+            return getEndpoints().getCustomers || null;
+        }
+
+        function saveEndpoints(getCustomers, webhookUrl) {
+            const endpoints = getEndpoints();
+            endpoints.getCustomers = getCustomers;
+            endpoints.webhookUrl   = webhookUrl;
+            localStorage.setItem(ENDPOINTS_KEY, JSON.stringify(endpoints));
+        }
+
+        // ── Auth helpers ─────────────────────────────────────────────────
+        function isAuthenticated() {
+            try {
+                const { timestamp, hash } = JSON.parse(localStorage.getItem(AUTH_KEY));
+                return Date.now() - timestamp < CONFIG.sessionTimeout &&
+                       hash === CONFIG.passwordHash;
+            } catch (e) { return false; }
+        }
+
+        function storeAuth(hash) {
+            localStorage.setItem(AUTH_KEY, JSON.stringify({ timestamp: Date.now(), hash }));
+        }
+
+        // ── UI helpers ───────────────────────────────────────────────────
+        function showLoading() { document.getElementById('loadingOverlay').classList.add('visible'); }
+        function hideLoading() { document.getElementById('loadingOverlay').classList.remove('visible'); }
+        function showMain()    { document.getElementById('mainContainer').classList.add('visible'); }
+
+        function getFormBaseUrl() {
+            return window.location.href.replace(/\/admin\.html.*$/, '/index.html');
+        }
+
+        function generateLink(customer) {
+            const base = getFormBaseUrl();
+            const webhookUrl = getEndpoints().webhookUrl || '';
+            const wh = webhookUrl ? '&wh=' + btoa(webhookUrl) : '';
+            return `${base}?customerId=${encodeURIComponent(customer.id)}&customerName=${encodeURIComponent(customer.name)}${wh}`;
+        }
+
+        // ── Customer loading ─────────────────────────────────────────────
+        async function loadAndDisplayCustomers() {
+            const webhookUrl = getWebhookUrl();
+            if (!webhookUrl) {
+                document.getElementById('setupOverlay').style.display = 'flex';
+                return;
+            }
+
+            showLoading();
+            try {
+                const response = await fetch(webhookUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({})
+                });
+                if (!response.ok) throw new Error('Webhook error');
+                const raw = await response.json();
+                const customers = raw.map(c => ({
+                    id:   c.AccountKey ?? c.id,
+                    name: c.FullName   ?? c.name
+                }));
+                renderTable(customers);
+            } catch (err) {
+                console.error(err);
+                document.getElementById('customerTableBody').innerHTML = `
+                    <tr>
+                        <td colspan="2" class="text-center text-danger py-4">
+                            <i class="fas fa-exclamation-circle me-2"></i>
+                            טעינת הלקוחות נכשלה. בדוק את כתובת ה-Webhook.
+                            <br>
+                            <button class="btn btn-sm btn-outline-danger mt-2"
+                                    onclick="openSetup()">עדכן כתובת Webhook</button>
+                        </td>
+                    </tr>`;
+            } finally {
+                hideLoading();
+            }
+        }
+
+        let allCustomers = [];
+
+        function renderTable(customers) {
+            allCustomers = customers.slice().sort((a, b) =>
+                a.name.localeCompare(b.name, 'he')
+            );
+            document.getElementById('customerSearch').value = '';
+            renderRows(allCustomers);
+        }
+
+        function renderRows(customers) {
+            const tbody = document.getElementById('customerTableBody');
+            if (!customers.length) {
+                tbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted py-4">לא נמצאו לקוחות</td></tr>';
+                return;
+            }
+            tbody.innerHTML = customers.map(customer => {
+                const link = generateLink(customer);
+                return `
+                    <tr>
+                        <td class="fw-bold">${customer.name}</td>
+                        <td class="text-muted">${customer.id}</td>
+                        <td>
+                            <button class="btn btn-sm btn-outline-primary me-1"
+                                    onclick="copyLink('${link}', this)"
+                                    title="העתק קישור">
+                                <i class="fas fa-copy"></i>
+                            </button>
+                            <a class="btn btn-sm btn-outline-secondary"
+                               href="${link}" target="_blank"
+                               title="פתח טופס">
+                                <i class="fas fa-external-link-alt"></i>
+                            </a>
+                        </td>
+                    </tr>`;
+            }).join('');
+        }
+
+        function copyLink(link, btn) {
+            navigator.clipboard.writeText(link).then(() => {
+                btn.innerHTML = '<i class="fas fa-check"></i>';
+                btn.classList.replace('btn-outline-primary', 'btn-success');
+                setTimeout(() => {
+                    btn.innerHTML = '<i class="fas fa-copy"></i>';
+                    btn.classList.replace('btn-success', 'btn-outline-primary');
+                }, 2000);
+            });
+        }
+
+        function openSetup() {
+            const endpoints = getEndpoints();
+            if (endpoints.getCustomers) document.getElementById('webhookGetCustomers').value = endpoints.getCustomers;
+            if (endpoints.webhookUrl)   document.getElementById('webhookSaveOrder').value   = endpoints.webhookUrl;
+            // Show cancel only when URLs are already configured (not first-time setup)
+            document.querySelector('#setupForm .btn-outline-secondary').style.display =
+                endpoints.getCustomers ? 'block' : 'none';
+            document.getElementById('setupOverlay').style.display = 'flex';
+        }
+
+        // ── Init ─────────────────────────────────────────────────────────
+        document.addEventListener('DOMContentLoaded', () => {
+
+            // Password form
+            document.getElementById('passwordForm').addEventListener('submit', e => {
+                e.preventDefault();
+                const hash = CryptoJS.SHA256(document.getElementById('passwordInput').value).toString();
+                if (hash === CONFIG.passwordHash) {
+                    storeAuth(hash);
+                    document.getElementById('passwordOverlay').style.display = 'none';
+                    showMain();
+                    loadAndDisplayCustomers();
+                } else {
+                    document.getElementById('passwordError').style.display = 'block';
+                    document.getElementById('passwordInput').value = '';
+                    document.getElementById('passwordInput').focus();
+                }
+            });
+
+            // Webhook setup form
+            document.getElementById('setupForm').addEventListener('submit', e => {
+                e.preventDefault();
+                saveEndpoints(
+                    document.getElementById('webhookGetCustomers').value.trim(),
+                    document.getElementById('webhookSaveOrder').value.trim()
+                );
+                document.getElementById('setupOverlay').style.display = 'none';
+                loadAndDisplayCustomers();
+            });
+
+            // Search
+            document.getElementById('customerSearch').addEventListener('input', e => {
+                const q = e.target.value.trim().toLowerCase();
+                renderRows(q
+                    ? allCustomers.filter(c =>
+                        c.name.toLowerCase().includes(q) ||
+                        String(c.id).toLowerCase().includes(q))
+                    : allCustomers);
+            });
+
+            // Settings button
+            document.getElementById('settingsBtn').addEventListener('click', openSetup);
+
+            // Refresh button
+            document.getElementById('refreshBtn').addEventListener('click', loadAndDisplayCustomers);
+
+            // Check auth on load
+            if (isAuthenticated()) {
+                showMain();
+                loadAndDisplayCustomers();
+            } else {
+                document.getElementById('passwordOverlay').style.display = 'flex';
+            }
+        });
+    </script>
+
+</body>
+</html>

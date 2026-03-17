@@ -19,9 +19,11 @@ const CONFIG = {
 
     // רשימת מוצרים
     products: [
-        { id: 'SOAP', name: 'סבון' },
-        { id: 'POLISH', name: 'מבריק' },
-        { id: 'SOFTENER', name: 'מרכך' },
+        { id: 'soap_big', name: 'is st000 - סבון למדיח פורמולה 40 - 24 ק"ג' },
+        { id: 'polish_big', name: 'is st001 - מבריק למדיח שיינר 20 ליטר' },
+        { id: 'soap_small', name: 'is st000/s - סבון למדיח פורמולה קטן 12 ק"ג' },
+        { id: 'polish_small', name: 'is st001/s - מבריק למדיח שיינר -קטן 10 ליטר' },
+        { id: 'softener', name: '9914040015 - טבליות מלח שק 25 ק"ג' },
         { id: 'OTHER', name: 'אחר' }
     ],
 

@@ -433,7 +433,7 @@ class OrderForm {
             const orderData = this.gatherOrderData();
 
             const hasSaveUrl = CONFIG.endpoints.saveOrder &&
-                !CONFIG.endpoints.saveOrder.startsWith('YOUR_');
+                CONFIG.endpoints.saveOrder.startsWith('http');
 
             if (!CONFIG.demoMode && hasSaveUrl) {
                 const response = await fetch(CONFIG.endpoints.saveOrder, {
@@ -461,6 +461,7 @@ class OrderForm {
 
     gatherOrderData() {
         const employeeName = document.getElementById('employeeName').value.trim();
+        const employeePhone = document.getElementById('employeePhone').value.trim();
         const customerSelect = document.getElementById('customerSelect');
         const customer = this.customers.find(c => c.id == customerSelect.value);
 
@@ -490,6 +491,7 @@ class OrderForm {
             orderId: this.generateOrderId(),
             timestamp: new Date().toISOString(),
             employeeName: employeeName,
+            employeePhone: employeePhone,
             customerId: customer?.id,
             customerName: customer?.name,
             customerContact: customer?.contact,
@@ -510,6 +512,7 @@ class OrderForm {
     resetForm() {
         // Reset employee name
         document.getElementById('employeeName').value = '';
+        document.getElementById('employeePhone').value = '';
 
         // Reset customer selection
         $('#customerSelect').val('').trigger('change');

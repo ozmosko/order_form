@@ -1,5 +1,17 @@
 // Order Form Application - Hebrew Version
 
+async function pbkdf2Hash(password) {
+    const enc = new TextEncoder();
+    const keyMaterial = await crypto.subtle.importKey(
+        'raw', enc.encode(password), 'PBKDF2', false, ['deriveBits']
+    );
+    const bits = await crypto.subtle.deriveBits(
+        { name: 'PBKDF2', salt: enc.encode('nitank-order-form-v1'), iterations: 100000, hash: 'SHA-256' },
+        keyMaterial, 256
+    );
+    return Array.from(new Uint8Array(bits)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
 class OrderForm {
     constructor() {
         this.customers = [];
@@ -16,17 +28,17 @@ class OrderForm {
             this.prefilledCustomer = { id: customerId, name: customerName };
         }
 
-        // If the link contains an encoded webhook URL, save it to localStorage
-        const wh = params.get('wh');
-        if (wh) {
+        // If the link contains an encoded customer password hash, save it to localStorage
+        const cph = params.get('cph');
+        if (cph) {
             try {
-                const webhookUrl = atob(wh);
+                const customerHash = atob(cph);
                 const stored = localStorage.getItem('orderFormEndpoints');
                 const endpoints = stored ? JSON.parse(stored) : {};
-                endpoints.webhookUrl = webhookUrl;
+                endpoints.customerPasswordHash = customerHash;
                 localStorage.setItem('orderFormEndpoints', JSON.stringify(endpoints));
             } catch (e) {
-                console.error('Failed to decode webhook URL from link', e);
+                console.error('Failed to decode customer password hash from link', e);
             }
         }
 
@@ -49,12 +61,12 @@ class OrderForm {
         if (!stored) return;
         try {
             const endpoints = JSON.parse(stored);
-            if (endpoints.getCustomers) {
+            if (endpoints.getCustomers && !this.customerMode) {
                 CONFIG.endpoints.getCustomers = endpoints.getCustomers;
                 CONFIG.demoMode = false;
             }
-            if (endpoints.webhookUrl) {
-                CONFIG.webhookUrl = endpoints.webhookUrl;
+            if (endpoints.customerPasswordHash && this.customerMode) {
+                CONFIG.customerPasswordHash = endpoints.customerPasswordHash;
             }
         } catch (e) {
             console.error('Failed to parse stored endpoints', e);
@@ -85,8 +97,13 @@ class OrderForm {
         document.getElementById('passwordOverlay').style.display = 'flex';
     }
 
-    verifyPassword(password) {
-        const hash = CryptoJS.SHA256(password).toString();
+    async verifyPassword(password) {
+        let hash;
+        if (this.customerMode) {
+            hash = await pbkdf2Hash(password);
+        } else {
+            hash = CryptoJS.SHA256(password).toString();
+        }
         const expectedHash = this.customerMode ? CONFIG.customerPasswordHash : CONFIG.passwordHash;
 
         if (hash === expectedHash) {
@@ -397,10 +414,8 @@ class OrderForm {
 
     // Webhook
     async triggerWebhook(orderData) {
-        if (!CONFIG.webhookUrl) return;
-
         try {
-            const response = await fetch(CONFIG.webhookUrl, {
+            const response = await fetch('/.netlify/functions/submit-order', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(orderData)
@@ -431,18 +446,6 @@ class OrderForm {
         try {
             // Gather order data
             const orderData = this.gatherOrderData();
-
-            const hasSaveUrl = CONFIG.endpoints.saveOrder &&
-                CONFIG.endpoints.saveOrder.startsWith('http');
-
-            if (!CONFIG.demoMode && hasSaveUrl) {
-                const response = await fetch(CONFIG.endpoints.saveOrder, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(orderData)
-                });
-                if (!response.ok) throw new Error('Failed to submit order');
-            }
 
             const webhookError = await this.triggerWebhook(orderData);
             if (webhookError) {
@@ -576,14 +579,22 @@ class OrderForm {
     // Event Listeners Setup
     setupEventListeners() {
         // Password form
-        document.getElementById('passwordForm').addEventListener('submit', (e) => {
+        document.getElementById('passwordForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             const password = document.getElementById('passwordInput').value;
             const errorEl = document.getElementById('passwordError');
+            const submitBtn = e.target.querySelector('button[type="submit"]');
 
-            if (!this.verifyPassword(password)) {
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>מאמת...';
+
+            const result = await this.verifyPassword(password);
+
+            if (!result) {
                 errorEl.style.display = 'block';
                 document.getElementById('passwordInput').value = '';
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="fas fa-sign-in-alt me-2"></i>כניסה';
                 document.getElementById('passwordInput').focus();
             }
         });
@@ -605,6 +616,40 @@ class OrderForm {
         document.getElementById('addProductBtn').addEventListener('click', () => {
             this.addProductRow();
         });
+
+        // Show "contact admin" button only in customer mode
+        if (this.customerMode) {
+            const section = document.getElementById('contactAdminSection');
+            if (section) section.style.display = 'block';
+        }
+
+        document.getElementById('contactAdminBtn')?.addEventListener('click', () => {
+            this.contactAdmin();
+        });
+    }
+
+    async contactAdmin() {
+        const btn = document.getElementById('contactAdminBtn');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>שולח...';
+
+        try {
+            await fetch('/.netlify/functions/submit-order', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    type: 'forgot_password',
+                    customerId: this.prefilledCustomer.id,
+                    customerName: this.prefilledCustomer.name,
+                    timestamp: new Date().toISOString()
+                })
+            });
+            document.getElementById('contactAdminSuccess').style.display = 'block';
+            btn.style.display = 'none';
+        } catch (e) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-envelope me-2"></i>שלח בקשה למנהל';
+        }
     }
 }
 

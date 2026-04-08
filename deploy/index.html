@@ -22,7 +22,7 @@
     <!-- Demo Mode Banner -->
     <div id="demoBanner" class="demo-banner">
         <i class="fas fa-flask me-1"></i>
-        מצב הדגמה - משתמש בנתונים לדוגמה. הגדר כתובות Power Automate בקובץ config.js לייצור.
+        מצב הדגמה - משתמש בנתונים לדוגמה. הגדר את MAKE_WEBHOOK_URL ב-Netlify לייצור.
     </div>
 
     <!-- Password Overlay -->
@@ -50,6 +50,18 @@
                 <i class="fas fa-info-circle me-1"></i>
                 פנה למנהל המערכת אם אין לך גישה.
             </p>
+            <div id="contactAdminSection" style="display:none;" class="mt-3">
+                <hr class="my-2">
+                <p class="small text-muted text-center mb-2">שכחת את הסיסמה?</p>
+                <button type="button" id="contactAdminBtn"
+                        class="btn btn-outline-secondary btn-sm w-100">
+                    <i class="fas fa-envelope me-2"></i>שלח בקשה למנהל
+                </button>
+                <div id="contactAdminSuccess" style="display:none;"
+                     class="alert alert-success mt-2 py-2 small text-center">
+                    <i class="fas fa-check-circle me-1"></i>הבקשה נשלחה. המנהל ייצור איתך קשר בקרוב.
+                </div>
+            </div>
         </div>
     </div>
 
@@ -169,7 +181,7 @@
         <div class="app-footer">
             <p class="mb-0">
                 <i class="fas fa-info-circle me-1"></i>
-                הזמנות נשמרות ל-SharePoint באופן אוטומטי
+                הזמנות נשלחות ל-Make.com באופן אוטומטי
             </p>
         </div>
     </div>
@@ -188,9 +200,6 @@
 
     <!-- App Configuration -->
     <script src="config.js"></script>
-
-    <!-- Local overrides (gitignored) - paste real URLs here -->
-    <script src="config.local.js"></script>
 
     <!-- App JavaScript -->
     <script src="app.js"></script>

@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>מנהל - יצירת קישורים ללקוחות</title>
+
+    <!-- Bootstrap 5 CSS RTL -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.rtl.min.css" rel="stylesheet">
+
+    <!-- Font Awesome -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+
+    <!-- App Styles -->
+    <link href="styles.css" rel="stylesheet">
+</head>
+<body>
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="loading-overlay">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">טוען...</div>
+    </div>
+
+    <!-- Password Overlay -->
+    <div id="passwordOverlay" class="password-overlay" style="display: none;">
+        <div class="password-modal">
+            <h2><i class="fas fa-lock me-2"></i>גישת מנהל</h2>
+            <form id="passwordForm">
+                <div class="mb-3">
+                    <input type="password"
+                           id="passwordInput"
+                           class="form-control form-control-lg"
+                           placeholder="הזן סיסמת עובד"
+                           autocomplete="current-password"
+                           required>
+                    <div id="passwordError" class="password-error">
+                        <i class="fas fa-exclamation-circle me-1"></i>
+                        סיסמה שגויה. נסה שוב.
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-primary btn-lg w-100">
+                    <i class="fas fa-sign-in-alt me-2"></i>כניסה
+                </button>
+            </form>
+            <div class="mt-3 text-center">
+                <button class="btn btn-link btn-sm text-muted p-0" type="button"
+                        data-bs-toggle="collapse" data-bs-target="#forgotPanel">
+                    <i class="fas fa-question-circle me-1"></i>שכחת סיסמה?
+                </button>
+                <div class="collapse mt-2 text-start" id="forgotPanel">
+                    <div class="card card-body py-2 px-3">
+                        <p class="small mb-2">
+                            הזן סיסמה חדשה לקבלת שורת עדכון לקובץ <code>config.js</code>.
+                        </p>
+                        <div class="input-group input-group-sm mb-2">
+                            <input type="text" id="recoveryPwInput" class="form-control"
+                                   placeholder="סיסמה חדשה">
+                        </div>
+                        <button class="btn btn-warning btn-sm w-100 mb-2" onclick="generateRecoveryHash()">
+                            <i class="fas fa-cog me-1"></i>צור שורה לעדכון
+                        </button>
+                        <div id="recoveryResult" style="display:none;">
+                            <label class="small fw-bold d-block">הדבק ב-config.js:</label>
+                            <div class="input-group input-group-sm">
+                                <input type="text" id="recoveryHashLine"
+                                       class="form-control font-monospace" readonly dir="ltr">
+                                <button class="btn btn-outline-secondary btn-sm" type="button"
+                                        onclick="copyLine('recoveryHashLine', this)">
+                                    <i class="fas fa-copy"></i>
+                                </button>
+                            </div>
+                            <div class="form-text">שמור את הקובץ בשרת ורענן את הדף.</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Webhook Setup Overlay -->
+    <div id="setupOverlay" class="password-overlay" style="display: none;">
+        <div class="password-modal">
+            <h2><i class="fas fa-cog me-2"></i>הגדרת Webhook</h2>
+            <p class="text-muted small mb-3">
+                הכתובת נשמרת בדפדפן בלבד ואינה נשמרת בקובץ.
+            </p>
+            <form id="setupForm">
+                <div class="mb-3">
+                    <label class="form-label fw-bold">כתובת הטופס הציבורי</label>
+                    <input type="text"
+                           id="formBaseUrl"
+                           class="form-control"
+                           placeholder="https://yoursite.netlify.app/index.html"
+                           required>
+                    <div class="form-text">הכתובת של index.html בשרת — לינקי הלקוחות יצביעו לכאן.</div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Webhook לטעינת רשימת לקוחות</label>
+                    <input type="text"
+                           id="webhookGetCustomers"
+                           class="form-control"
+                           placeholder="https://..."
+                           required>
+                </div>
+                <div class="alert alert-info py-2 small mb-3">
+                    <i class="fas fa-info-circle me-1"></i>
+                    כתובת ה-Webhook של Make.com מוגדרת כ-environment variable ב-Netlify ואינה נכללת בקישורי הלקוחות.
+                </div>
+                <hr>
+                <div class="mb-3">
+                    <label class="form-label fw-bold">סיסמת לקוחות</label>
+                    <input type="text"
+                           id="customerPasswordInput"
+                           class="form-control"
+                           placeholder="הזן סיסמה ללקוחות">
+                    <div class="form-text">
+                        סיסמה זו תוטמע בכל קישורי הלקוחות.
+                        לאחר השמירה, צור מחדש את כל הקישורים ושלח ללקוחות.
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-primary btn-lg w-100">
+                    <i class="fas fa-save me-2"></i>שמור
+                </button>
+                <button type="button" class="btn btn-outline-secondary w-100 mt-2"
+                        onclick="document.getElementById('setupOverlay').style.display='none'">
+                    ביטול
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div id="mainContainer" class="main-container container-fluid">
+        <div class="form-card">
+
+            <!-- Header -->
+            <div class="text-center mb-3">
+                <img src="nitank_logo.jpeg" alt="לוגו" style="height: 72px; width: auto;">
+            </div>
+
+            <div class="app-header">
+                <div>
+                    <h1><i class="fas fa-link me-2"></i>יצירת קישורים ללקוחות</h1>
+                    <p class="subtitle mb-0">צור קישור אישי לכל לקוח ושלח אליו</p>
+                </div>
+                <div class="d-flex gap-2 flex-wrap">
+                    <button id="settingsBtn" class="btn btn-outline-secondary btn-logout">
+                        <i class="fas fa-cog me-1"></i>Webhook
+                    </button>
+                    <a href="index.html" class="btn btn-outline-primary btn-logout">
+                        <i class="fas fa-clipboard-list me-1"></i>טופס הזמנה
+                    </a>
+                </div>
+            </div>
+
+
+            <!-- Tabs -->
+            <ul class="nav nav-tabs mb-3" id="adminTabs">
+                <li class="nav-item">
+                    <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#customersTab">
+                        <i class="fas fa-users me-1"></i>לקוחות
+                    </button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#productsTab">
+                        <i class="fas fa-box me-1"></i>מוצרים
+                    </button>
+                </li>
+            </ul>
+
+            <div class="tab-content">
+
+                <!-- Customers Tab -->
+                <div class="tab-pane fade show active" id="customersTab">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h3 class="mb-0">רשימת לקוחות</h3>
+                        <div class="d-flex gap-2">
+                            <button type="button" class="btn btn-outline-warning btn-sm" onclick="openTestForm()">
+                                <i class="fas fa-flask me-1"></i>פתח טופס לבדיקה
+                            </button>
+                            <button id="refreshBtn" class="btn btn-outline-secondary btn-sm">
+                                <i class="fas fa-sync-alt me-1"></i>רענן
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <input type="text" id="customerSearch" class="form-control"
+                               placeholder="חיפוש לפי שם לקוח או קוד לקוח...">
+                        <div id="searchResultCount" class="form-text mt-1" style="display: none;"></div>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>שם לקוח</th>
+                                    <th>קוד לקוח</th>
+                                    <th style="width: 100px;">פעולות</th>
+                                </tr>
+                            </thead>
+                            <tbody id="customerTableBody">
+                                <tr>
+                                    <td colspan="3" class="text-center text-muted py-4">
+                                        <i class="fas fa-spinner fa-spin me-2"></i>טוען...
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Products Tab -->
+                <div class="tab-pane fade" id="productsTab">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h3 class="mb-0">מוצרים</h3>
+                        <div class="d-flex gap-2">
+                            <button type="button" class="btn btn-outline-primary btn-sm" onclick="addProductRow()">
+                                <i class="fas fa-plus me-1"></i>הוסף מוצר
+                            </button>
+                            <button type="button" class="btn btn-success btn-sm" onclick="downloadConfig()">
+                                <i class="fas fa-download me-1"></i>הורד config.js
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>שם מוצר</th>
+                                    <th style="width: 180px;">מזהה</th>
+                                    <th style="width: 60px;"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="productsTableBody"></tbody>
+                        </table>
+                    </div>
+
+                    <div class="alert alert-info py-2 small mt-2">
+                        <i class="fas fa-info-circle me-1"></i>
+                        לאחר ההורדה: החלף את <code>deploy/config.js</code> בקובץ החדש, הרץ את <code>sync_config</code> ועלה שוב ל-Netlify.
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+    </div>
+
+    <!-- jQuery -->
+    <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- CryptoJS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.2.0/crypto-js.min.js"></script>
+    <!-- Config -->
+    <script src="config.js"></script>
+
+    <script>
+        const ENDPOINTS_KEY = 'orderFormEndpoints';
+        const AUTH_KEY     = 'orderFormAdminAuth';
+
+        async function pbkdf2Hash(password) {
+            const enc = new TextEncoder();
+            const keyMaterial = await crypto.subtle.importKey(
+                'raw', enc.encode(password), 'PBKDF2', false, ['deriveBits']
+            );
+            const bits = await crypto.subtle.deriveBits(
+                { name: 'PBKDF2', salt: enc.encode('nitank-order-form-v1'), iterations: 100000, hash: 'SHA-256' },
+                keyMaterial, 256
+            );
+            return Array.from(new Uint8Array(bits)).map(b => b.toString(16).padStart(2, '0')).join('');
+        }
+
+        // ── Storage helpers ──────────────────────────────────────────────
+        function getEndpoints() {
+            try {
+                return JSON.parse(localStorage.getItem(ENDPOINTS_KEY)) || {};
+            } catch (e) { return {}; }
+        }
+
+        function getWebhookUrl() {
+            return getEndpoints().getCustomers || null;
+        }
+
+        function saveEndpoints(getCustomers, webhookUrl) {
+            const endpoints = getEndpoints();
+            endpoints.getCustomers = getCustomers;
+            endpoints.webhookUrl   = webhookUrl;
+            localStorage.setItem(ENDPOINTS_KEY, JSON.stringify(endpoints));
+        }
+
+        // ── Auth helpers ─────────────────────────────────────────────────
+        function isAuthenticated() {
+            try {
+                const { timestamp, hash } = JSON.parse(localStorage.getItem(AUTH_KEY));
+                return Date.now() - timestamp < CONFIG.sessionTimeout &&
+                       hash === CONFIG.passwordHash;
+            } catch (e) { return false; }
+        }
+
+        function storeAuth(hash) {
+            localStorage.setItem(AUTH_KEY, JSON.stringify({ timestamp: Date.now(), hash }));
+        }
+
+        // ── UI helpers ───────────────────────────────────────────────────
+        function showLoading() { document.getElementById('loadingOverlay').classList.add('visible'); }
+        function hideLoading() { document.getElementById('loadingOverlay').classList.remove('visible'); }
+        function showMain()    { document.getElementById('mainContainer').classList.add('visible'); }
+
+        function getFormBaseUrl() {
+            return getEndpoints().formBaseUrl ||
+                window.location.href.replace(/\/admin\.html.*$/, '/index.html');
+        }
+
+        function generateLink(customer) {
+            const base = getFormBaseUrl();
+            const endpoints = getEndpoints();
+            const customerHash = endpoints.customerPasswordHash || '';
+            const cph = customerHash ? '&cph=' + btoa(customerHash) : '';
+            return `${base}?customerId=${encodeURIComponent(customer.id)}&customerName=${encodeURIComponent(customer.name)}${cph}`;
+        }
+
+        // ── Customer loading ─────────────────────────────────────────────
+        async function loadAndDisplayCustomers() {
+            const webhookUrl = getWebhookUrl();
+            if (!webhookUrl) {
+                document.getElementById('setupOverlay').style.display = 'flex';
+                return;
+            }
+
+            showLoading();
+            try {
+                const response = await fetch(webhookUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({})
+                });
+                if (!response.ok) throw new Error('Webhook error');
+                const raw = await response.json();
+                const customers = raw.map(c => ({
+                    id:   c.AccountKey ?? c.id,
+                    name: c.FullName   ?? c.name
+                }));
+                renderTable(customers);
+            } catch (err) {
+                console.error(err);
+                document.getElementById('customerTableBody').innerHTML = `
+                    <tr>
+                        <td colspan="3" class="text-center text-danger py-4">
+                            <i class="fas fa-exclamation-circle me-2"></i>
+                            טעינת הלקוחות נכשלה. בדוק את כתובת ה-Webhook.
+                            <br>
+                            <div class="d-flex gap-2 justify-content-center mt-2">
+                                <button class="btn btn-sm btn-outline-danger"
+                                        onclick="openSetup()">עדכן כתובת Webhook</button>
+                                <button class="btn btn-sm btn-outline-warning"
+                                        onclick="openTestForm()"><i class="fas fa-flask me-1"></i>פתח טופס לבדיקה</button>
+                            </div>
+                        </td>
+                    </tr>`;
+            } finally {
+                hideLoading();
+            }
+        }
+
+        let allCustomers = [];
+
+        function renderTable(customers) {
+            allCustomers = customers.slice().sort((a, b) =>
+                a.name.localeCompare(b.name, 'he')
+            );
+            document.getElementById('customerSearch').value = '';
+            renderRows(allCustomers);
+        }
+
+        function renderRows(customers) {
+            const tbody = document.getElementById('customerTableBody');
+            if (!customers.length) {
+                tbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted py-4">לא נמצאו לקוחות</td></tr>';
+                return;
+            }
+            tbody.innerHTML = customers.map(customer => {
+                const link = generateLink(customer);
+                return `
+                    <tr>
+                        <td class="fw-bold">${customer.name}</td>
+                        <td class="text-muted">${customer.id}</td>
+                        <td>
+                            <button class="btn btn-sm btn-outline-primary me-1"
+                                    onclick="copyLink('${link}', this)"
+                                    title="העתק קישור">
+                                <i class="fas fa-copy"></i>
+                            </button>
+                            <a class="btn btn-sm btn-outline-secondary"
+                               href="${link}" target="_blank"
+                               title="פתח טופס">
+                                <i class="fas fa-external-link-alt"></i>
+                            </a>
+                        </td>
+                    </tr>`;
+            }).join('');
+        }
+
+        function copyLink(link, btn) {
+            navigator.clipboard.writeText(link).then(() => {
+                btn.innerHTML = '<i class="fas fa-check"></i>';
+                btn.classList.replace('btn-outline-primary', 'btn-success');
+                setTimeout(() => {
+                    btn.innerHTML = '<i class="fas fa-copy"></i>';
+                    btn.classList.replace('btn-success', 'btn-outline-primary');
+                }, 2000);
+            });
+        }
+
+        function openSetup() {
+            const endpoints = getEndpoints();
+            if (endpoints.formBaseUrl)  document.getElementById('formBaseUrl').value          = endpoints.formBaseUrl;
+            if (endpoints.getCustomers) document.getElementById('webhookGetCustomers').value   = endpoints.getCustomers;
+            document.getElementById('customerPasswordInput').value = endpoints.customerPassword || '';
+            // Show cancel only when URLs are already configured (not first-time setup)
+            document.querySelector('#setupForm .btn-outline-secondary').style.display =
+                endpoints.getCustomers ? 'block' : 'none';
+            document.getElementById('setupOverlay').style.display = 'flex';
+        }
+
+        // ── Test form ────────────────────────────────────────────────────
+        function openTestForm() {
+            const base = getFormBaseUrl();
+            const endpoints = getEndpoints();
+            const customerHash = endpoints.customerPasswordHash || '';
+            const cph = customerHash ? '&cph=' + btoa(customerHash) : '';
+            const url = `${base}?customerId=12345678&customerName=${encodeURIComponent('שם לקוח לבדיקה בלבד')}${cph}`;
+            window.open(url, '_blank');
+        }
+
+        // ── Products tab ─────────────────────────────────────────────────
+        function loadProductsTab() {
+            const tbody = document.getElementById('productsTableBody');
+            tbody.innerHTML = '';
+            CONFIG.products.forEach(p => tbody.appendChild(createProductRow(p.id, p.name)));
+        }
+
+        function createProductRow(id, name) {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td><input type="text" class="form-control form-control-sm product-name"
+                           value="${name.replace(/"/g, '&quot;')}" placeholder="שם מוצר..."></td>
+                <td><input type="text" class="form-control form-control-sm font-monospace product-id"
+                           value="${id}" placeholder="מזהה..." dir="ltr"></td>
+                <td>
+                    <button type="button" class="btn btn-sm btn-outline-danger"
+                            onclick="this.closest('tr').remove()" title="מחק">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </td>`;
+            return tr;
+        }
+
+        function addProductRow() {
+            const tbody = document.getElementById('productsTableBody');
+            const row = createProductRow('', '');
+            tbody.appendChild(row);
+            row.querySelector('.product-name').focus();
+        }
+
+        function downloadConfig() {
+            const rows = document.querySelectorAll('#productsTableBody tr');
+            const products = Array.from(rows)
+                .map(tr => ({
+                    id:   tr.querySelector('.product-id').value.trim(),
+                    name: tr.querySelector('.product-name').value.trim()
+                }))
+                .filter(p => p.id && p.name);
+
+            if (!products.length) {
+                alert('אנא הוסף לפחות מוצר אחד עם שם ומזהה.');
+                return;
+            }
+
+            const productsStr = products
+                .map(p => `        { id: '${p.id}', name: '${p.name.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}' }`)
+                .join(',\n');
+
+            const content =
+`// קובץ הגדרות בסיסי - ערכי ברירת מחדל
+// אל תכניס כתובות אמיתיות כאן
+
+const CONFIG = {
+    // כתובת לטעינת רשימת לקוחות - מוגדרת דרך ממשק המנהל ונשמרת ב-localStorage
+    endpoints: {
+        getCustomers: ''
+    },
+
+    // האש סיסמת עובדים (SHA-256) - ליצירת האש: פתח את admin.html ← שכחת סיסמה?
+    passwordHash: '${CONFIG.passwordHash}',
+
+    // האש סיסמת לקוחות - נטען אוטומטית מתוך קישור הלקוח (פרמטר cph)
+    customerPasswordHash: '',
+
+    // זמן פקיעת הפעלה (ברירת מחדל: 8 שעות)
+    sessionTimeout: 8 * 60 * 60 * 1000,
+
+    // רשימת מוצרים
+    products: [
+${productsStr}
+    ],
+
+    // הפעל מצב הדגמה
+    demoMode: true
+};
+
+// נתוני לקוחות לדוגמה (משמשים רק כאשר demoMode = true)
+const DEMO_CUSTOMERS = ${JSON.stringify(DEMO_CUSTOMERS, null, 4)};
+`;
+
+            const blob = new Blob([content], { type: 'text/javascript' });
+            const url  = URL.createObjectURL(blob);
+            const a    = document.createElement('a');
+            a.href     = url;
+            a.download = 'config.js';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        // ── Init ─────────────────────────────────────────────────────────
+        document.addEventListener('DOMContentLoaded', () => {
+
+            // Password form
+            document.getElementById('passwordForm').addEventListener('submit', e => {
+                e.preventDefault();
+                const hash = CryptoJS.SHA256(document.getElementById('passwordInput').value).toString();
+                if (hash === CONFIG.passwordHash) {
+                    storeAuth(hash);
+                    document.getElementById('passwordOverlay').style.display = 'none';
+                    showMain();
+                    loadAndDisplayCustomers();
+                    loadProductsTab();
+                } else {
+                    document.getElementById('passwordError').style.display = 'block';
+                    document.getElementById('passwordInput').value = '';
+                    document.getElementById('passwordInput').focus();
+                }
+            });
+
+            // Webhook setup form
+            document.getElementById('setupForm').addEventListener('submit', async e => {
+                e.preventDefault();
+                const btn = e.target.querySelector('button[type="submit"]');
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>שומר...';
+
+                const endpoints = getEndpoints();
+                endpoints.formBaseUrl  = document.getElementById('formBaseUrl').value.trim();
+                endpoints.getCustomers = document.getElementById('webhookGetCustomers').value.trim();
+                const customerPw = document.getElementById('customerPasswordInput').value.trim();
+                if (customerPw) {
+                    endpoints.customerPassword     = customerPw;
+                    endpoints.customerPasswordHash = await pbkdf2Hash(customerPw);
+                }
+                localStorage.setItem(ENDPOINTS_KEY, JSON.stringify(endpoints));
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-save me-2"></i>שמור';
+                document.getElementById('setupOverlay').style.display = 'none';
+                loadAndDisplayCustomers();
+            });
+
+            // Search
+            document.getElementById('customerSearch').addEventListener('input', e => {
+                const q = e.target.value.trim().toLowerCase();
+                const filtered = q
+                    ? allCustomers.filter(c =>
+                        c.name.toLowerCase().includes(q) ||
+                        String(c.id).toLowerCase().includes(q))
+                    : allCustomers;
+                renderRows(filtered);
+                const countEl = document.getElementById('searchResultCount');
+                if (q) {
+                    countEl.textContent = `נמצאו ${filtered.length} תוצאות`;
+                    countEl.style.display = 'block';
+                } else {
+                    countEl.style.display = 'none';
+                }
+            });
+
+            // Settings button
+            document.getElementById('settingsBtn').addEventListener('click', openSetup);
+
+            // Refresh button
+            document.getElementById('refreshBtn').addEventListener('click', loadAndDisplayCustomers);
+
+            // ── Password management helpers ──────────────────────────────────
+        function copyLine(inputId, btn) {
+            navigator.clipboard.writeText(document.getElementById(inputId).value).then(() => {
+                const icon = btn.querySelector('i');
+                icon.classList.replace('fa-copy', 'fa-check');
+                btn.classList.replace('btn-outline-secondary', 'btn-success');
+                setTimeout(() => {
+                    icon.classList.replace('fa-check', 'fa-copy');
+                    btn.classList.replace('btn-success', 'btn-outline-secondary');
+                }, 2000);
+            });
+        }
+
+        function generateRecoveryHash() {
+            const pw = document.getElementById('recoveryPwInput').value.trim();
+            if (!pw) { document.getElementById('recoveryPwInput').classList.add('is-invalid'); return; }
+            document.getElementById('recoveryPwInput').classList.remove('is-invalid');
+            document.getElementById('recoveryHashLine').value =
+                `CONFIG.passwordHash = '${CryptoJS.SHA256(pw).toString()}';`;
+            document.getElementById('recoveryResult').style.display = 'block';
+        }
+
+            // Check auth on load
+            if (isAuthenticated()) {
+                showMain();
+                loadAndDisplayCustomers();
+                loadProductsTab();
+            } else {
+                document.getElementById('passwordOverlay').style.display = 'flex';
+            }
+        });
+    </script>
+
+</body>
+</html>

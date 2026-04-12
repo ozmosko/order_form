@@ -157,7 +157,7 @@ class OrderForm {
                         <i class="fas fa-hashtag me-1"></i>${this.prefilledCustomer.id}
                     </small>
                 </div>`;
-            // Customers don't know their password — logout just traps them
+            // Customers don't know their password - logout just traps them
             document.getElementById('logoutBtn').style.display = 'none';
         }
 

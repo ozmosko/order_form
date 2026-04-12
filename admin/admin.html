@@ -323,8 +323,10 @@
             const base = getFormBaseUrl();
             const endpoints = getEndpoints();
             const customerHash = endpoints.customerPasswordHash || '';
-            const cph = customerHash ? '&cph=' + btoa(customerHash) : '';
-            return `${base}?customerId=${encodeURIComponent(customer.id)}&customerName=${encodeURIComponent(customer.name)}${cph}`;
+            const cph = customerHash ? '&h=' + btoa(customerHash) : '';
+            // base64-encode the customer name to avoid long %D7%XX Hebrew encoding
+            const encodedName = btoa(unescape(encodeURIComponent(customer.name)));
+            return `${base}?cid=${encodeURIComponent(customer.id)}&cn=${encodedName}${cph}`;
         }
 
         // ── Customer loading ─────────────────────────────────────────────
@@ -435,8 +437,9 @@
             const base = getFormBaseUrl();
             const endpoints = getEndpoints();
             const customerHash = endpoints.customerPasswordHash || '';
-            const cph = customerHash ? '&cph=' + btoa(customerHash) : '';
-            const url = `${base}?customerId=12345678&customerName=${encodeURIComponent('שם לקוח לבדיקה בלבד')}${cph}`;
+            const cph = customerHash ? '&h=' + btoa(customerHash) : '';
+            const encodedName = btoa(unescape(encodeURIComponent('שם לקוח לבדיקה בלבד')));
+            const url = `${base}?cid=12345678&cn=${encodedName}${cph}`;
             window.open(url, '_blank');
         }
 

@@ -22,15 +22,27 @@ class OrderForm {
         this.pendingOrderData = null;
 
         const params = new URLSearchParams(window.location.search);
-        const customerId = params.get('customerId');
-        const customerName = params.get('customerName');
+        // Support both new short params (cid/cn) and old long params (customerId/customerName)
+        const customerId   = params.get('cid') || params.get('customerId');
+        const customerNameRaw = params.get('cn') || params.get('customerName');
+        let customerName = null;
+        if (customerNameRaw) {
+            try {
+                // cn is base64-encoded UTF-8; customerName (legacy) is plain URL-decoded
+                customerName = params.get('cn')
+                    ? decodeURIComponent(escape(atob(customerNameRaw)))
+                    : customerNameRaw;
+            } catch (e) {
+                customerName = customerNameRaw;
+            }
+        }
         if (customerId && customerName) {
             this.customerMode = true;
             this.prefilledCustomer = { id: customerId, name: customerName };
         }
 
         // If the link contains an encoded customer password hash, save it to localStorage
-        const cph = params.get('cph');
+        const cph = params.get('h') || params.get('cph');
         if (cph) {
             try {
                 const customerHash = atob(cph);

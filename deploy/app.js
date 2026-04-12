@@ -19,6 +19,7 @@ class OrderForm {
         this.isAuthenticated = false;
         this.customerMode = false;
         this.prefilledCustomer = null;
+        this.pendingOrderData = null;
 
         const params = new URLSearchParams(window.location.search);
         const customerId = params.get('customerId');
@@ -144,7 +145,13 @@ class OrderForm {
                         <i class="fas fa-hashtag me-1"></i>${this.prefilledCustomer.id}
                     </small>
                 </div>`;
+            // Customers don't know their password — logout just traps them
+            document.getElementById('logoutBtn').style.display = 'none';
         }
+
+        // Restore last used employee name
+        const savedName = localStorage.getItem('orderFormEmployeeName');
+        if (savedName) document.getElementById('employeeName').value = savedName;
 
         this.loadCustomers();
         this.addProductRow();
@@ -326,30 +333,43 @@ class OrderForm {
         const rows = document.querySelectorAll('.product-row');
         const summaryContainer = document.getElementById('orderSummary');
         let itemCount = 0;
-        let productCount = 0;
+        const productLines = [];
 
         rows.forEach(row => {
             const select = row.querySelector('.product-select');
+            const customInput = row.querySelector('.custom-product-input');
             const quantity = parseInt(row.querySelector('.quantity-input').value) || 0;
 
             if (select.value && quantity > 0) {
-                productCount++;
+                let name;
+                if (select.value === 'OTHER' && customInput.value.trim()) {
+                    name = customInput.value.trim();
+                } else {
+                    const product = CONFIG.products.find(p => p.id === select.value);
+                    name = product?.name || select.value;
+                }
+                productLines.push({ name, quantity });
                 itemCount += quantity;
             }
         });
 
         const customerSelect = document.getElementById('customerSelect');
-        const customerName = customerSelect.options[customerSelect.selectedIndex]?.text || 'ללא';
+        const customerName = customerSelect.options[customerSelect.selectedIndex]?.text || '';
+
+        const productRowsHtml = productLines.length
+            ? productLines.map(p => `
+                <div class="summary-row">
+                    <span>${p.name}</span>
+                    <span>${p.quantity}</span>
+                </div>`).join('')
+            : '<div class="summary-row"><span><em>לא נבחרו מוצרים</em></span><span></span></div>';
 
         summaryContainer.innerHTML = `
             <div class="summary-row">
                 <span>לקוח:</span>
                 <span>${customerSelect.value ? customerName : '<em>לא נבחר</em>'}</span>
             </div>
-            <div class="summary-row">
-                <span>מוצרים:</span>
-                <span>${productCount} סוגים</span>
-            </div>
+            ${productRowsHtml}
             <div class="summary-row total">
                 <span>סה"כ פריטים:</span>
                 <span>${itemCount}</span>
@@ -429,31 +449,56 @@ class OrderForm {
 
     // Form Submission
     async submitOrder() {
-        // Validate form
         const errors = this.validateForm();
         if (errors.length > 0) {
             this.showAlert(errors.join('<br>'), 'danger');
             return;
         }
 
-        // Confirm submission
-        if (!confirm('האם אתה בטוח שברצונך לשלוח את ההזמנה?')) {
-            return;
-        }
+        this.pendingOrderData = this.gatherOrderData();
+        document.getElementById('confirmModalBody').innerHTML =
+            this.buildConfirmationHtml(this.pendingOrderData);
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('confirmModal')).show();
+    }
+
+    buildConfirmationHtml(orderData) {
+        const productRows = orderData.products.map(p =>
+            `<tr><td>${p.productName}</td><td class="text-center fw-bold">${p.quantity}</td></tr>`
+        ).join('');
+
+        return `
+            <table class="table table-sm mb-3">
+                <tr><th class="text-muted" style="width:90px">לקוח</th><td class="fw-bold">${orderData.customerName}</td></tr>
+                <tr><th class="text-muted">עובד</th><td>${orderData.employeeName}</td></tr>
+                ${orderData.employeePhone ? `<tr><th class="text-muted">טלפון</th><td>${orderData.employeePhone}</td></tr>` : ''}
+            </table>
+            <table class="table table-sm table-bordered">
+                <thead class="table-light">
+                    <tr><th>מוצר</th><th class="text-center" style="width:70px">כמות</th></tr>
+                </thead>
+                <tbody>${productRows}</tbody>
+                <tfoot class="table-light">
+                    <tr><th>סה"כ פריטים</th><th class="text-center">${orderData.totalItems}</th></tr>
+                </tfoot>
+            </table>
+            ${orderData.notes ? `<div class="alert alert-light py-2 small mb-0"><strong>הערות:</strong> ${orderData.notes}</div>` : ''}
+        `;
+    }
+
+    async confirmAndSubmit() {
+        const orderData = this.pendingOrderData;
+        bootstrap.Modal.getInstance(document.getElementById('confirmModal')).hide();
 
         this.showLoading('שולח הזמנה...');
-
         try {
-            // Gather order data
-            const orderData = this.gatherOrderData();
-
             const webhookError = await this.triggerWebhook(orderData);
             if (webhookError) {
-                this.showAlert('ההזמנה נשלחה בהצלחה, אך שליחת ה-webhook נכשלה', 'warning');
+                this.showAlert('שליחת ההזמנה נכשלה. אנא נסה שוב.', 'danger');
             } else {
+                localStorage.setItem('orderFormEmployeeName', orderData.employeeName);
                 this.showAlert('ההזמנה נשלחה בהצלחה!', 'success');
+                this.resetForm();
             }
-            this.resetForm();
         } catch (error) {
             console.error('Error submitting order:', error);
             this.showAlert('שליחת ההזמנה נכשלה. אנא נסה שוב.', 'danger');
@@ -563,13 +608,13 @@ class OrderForm {
 
         container.appendChild(alert);
 
-        // Auto-dismiss after 5 seconds
-        setTimeout(() => {
-            const alertEl = document.getElementById(alertId);
-            if (alertEl) {
-                alertEl.remove();
-            }
-        }, 5000);
+        // Success alerts stay until manually dismissed; others auto-dismiss after 5s
+        if (type !== 'success') {
+            setTimeout(() => {
+                const alertEl = document.getElementById(alertId);
+                if (alertEl) alertEl.remove();
+            }, 5000);
+        }
     }
 
     simulateDelay(ms) {
@@ -615,6 +660,11 @@ class OrderForm {
         // Add product button
         document.getElementById('addProductBtn').addEventListener('click', () => {
             this.addProductRow();
+        });
+
+        // Confirmation modal submit button
+        document.getElementById('confirmSubmitBtn').addEventListener('click', () => {
+            this.confirmAndSubmit();
         });
 
         // Show "contact admin" button only in customer mode

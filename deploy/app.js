@@ -548,6 +548,7 @@ class OrderForm {
         });
 
         return {
+            type: 'order',
             orderId: this.generateOrderId(),
             timestamp: new Date().toISOString(),
             employeeName: employeeName,

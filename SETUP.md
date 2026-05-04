@@ -1,330 +1,134 @@
-# Order Form Setup Guide
+# Order Form - הגדרת Make.com ו-Excel
 
-This guide will help you set up the Order Form application with Power Automate and SharePoint.
-
-## Table of Contents
-1. [Prerequisites](#prerequisites)
-2. [SharePoint Excel Setup](#sharepoint-excel-setup)
-3. [Power Automate Flow 1: Get Customers](#power-automate-flow-1-get-customers)
-4. [Power Automate Flow 2: Save Order](#power-automate-flow-2-save-order)
-5. [Configuration](#configuration)
-6. [Hosting Options](#hosting-options)
-7. [Testing](#testing)
-8. [Troubleshooting](#troubleshooting)
+מדריך זה מסביר כיצד להגדיר את תרחישי Make.com ואת קבצי ה-Excel.
 
 ---
 
-## Prerequisites
+## קבצי Excel ב-SharePoint
 
-- Microsoft 365 account with access to:
-  - SharePoint Online
-  - Power Automate (Flow)
-  - Excel Online
-- Web hosting location (SharePoint, GitHub Pages, or any web server)
+### Customers.xlsx
+טבלה בשם `Customers` עם העמודות:
 
----
+| AccountKey | FullName |
+|------------|----------|
+| 1001 | חברת אקמה בע"מ |
+| 1002 | תעשיות בטא |
 
-## SharePoint Excel Setup
+> `AccountKey` = מזהה הלקוח (גם משמש כסיסמה לכניסה לטופס)
 
-### Step 1: Create the Customers Excel File
+### Orders.xlsx
+טבלה בשם `Orders` עם העמודות:
 
-1. Go to your SharePoint site
-2. Navigate to a document library (e.g., "Documents")
-3. Create a new Excel file named `Customers.xlsx`
-4. Create a table with the following columns:
+| orderId | timestamp | employeeName | employeePhone | linkedByEmployee | customerId | customerName | products | notes | totalItems |
+|---------|-----------|--------------|---------------|------------------|------------|--------------|----------|-------|------------|
 
-| id | name | contact | email |
-|----|------|---------|-------|
-| 1 | Acme Corporation | John Smith | john@acme.com |
-| 2 | Beta Industries | Jane Doe | jane@beta.com |
+### Activity.xlsx
+טבלה בשם `Activity` עם העמודות:
 
-5. **Important**: Format this data as an Excel Table
-   - Select all data including headers
-   - Go to Insert > Table
-   - Name the table `Customers` (Table Design > Table Name)
-
-### Step 2: Create the Orders Excel File
-
-1. In the same SharePoint library, create `Orders.xlsx`
-2. Create a table with the following columns:
-
-| orderId | timestamp | customerId | customerName | customerContact | customerEmail | products | notes | totalItems |
-|---------|-----------|------------|--------------|-----------------|---------------|----------|-------|------------|
-
-3. Format as an Excel Table named `Orders`
+| timestamp | type | employeeId | employeeName | customerId | customerName |
+|-----------|------|------------|--------------|------------|--------------|
 
 ---
 
-## Power Automate Flow 1: Get Customers
+## תרחיש 1 - טעינת לקוחות (Get Customers)
 
-This flow returns the list of customers from SharePoint Excel.
+**טריגר:** Custom Webhook (POST)
 
-### Step 1: Create the Flow
+**צעדים:**
+1. `Excel 365 > Search Rows` — קרא את כל השורות מטבלת `Customers`
+2. `Webhook Response` — החזר את המערך:
+   - Status: `200`
+   - Body: `{{array of rows}}`
+   - Headers: `Content-Type: application/json`
 
-1. Go to [Power Automate](https://make.powerautomate.com)
-2. Click **Create** > **Instant cloud flow**
-3. Name it: "Order Form - Get Customers"
-4. Select trigger: **When a HTTP request is received**
-5. Click **Create**
-
-### Step 2: Configure the HTTP Trigger
-
-1. Click on the trigger
-2. For **Request Body JSON Schema**, leave it empty (GET request)
-3. Under **Settings** > **Allowed Methods**, add: `GET`
-
-### Step 3: Add Excel Action
-
-1. Click **+ New step**
-2. Search for "Excel Online (Business)"
-3. Select **List rows present in a table**
-4. Configure:
-   - **Location**: Your SharePoint site
-   - **Document Library**: Documents (or your library)
-   - **File**: /Customers.xlsx
-   - **Table**: Customers
-
-### Step 4: Add Response Action
-
-1. Click **+ New step**
-2. Search for "Response"
-3. Select **Response** (from Request connector)
-4. Configure:
-   - **Status Code**: 200
-   - **Headers**:
-     ```
-     Content-Type: application/json
-     Access-Control-Allow-Origin: *
-     ```
-   - **Body**: Select the `value` from the Excel action (dynamic content)
-
-### Step 5: Save and Get URL
-
-1. Click **Save**
-2. Go back to the HTTP trigger
-3. Copy the **HTTP POST URL** - you'll need this for config.js
+**כתובת ה-Webhook** נשמרת בממשק הניהול תחת הגדרות → "Webhook לטעינת לקוחות".
 
 ---
 
-## Power Automate Flow 2: Save Order
+## תרחיש 2 - שמירת הזמנה (Save Order)
 
-This flow saves new orders to SharePoint Excel.
+**טריגר:** Custom Webhook (POST)
 
-### Step 1: Create the Flow
-
-1. Go to Power Automate
-2. Click **Create** > **Instant cloud flow**
-3. Name it: "Order Form - Save Order"
-4. Select trigger: **When a HTTP request is received**
-5. Click **Create**
-
-### Step 2: Configure the HTTP Trigger
-
-1. Click on the trigger
-2. For **Request Body JSON Schema**, paste:
-
+גוף הבקשה מכיל:
 ```json
 {
-    "type": "object",
-    "properties": {
-        "orderId": { "type": "string" },
-        "timestamp": { "type": "string" },
-        "customerId": { "type": "integer" },
-        "customerName": { "type": "string" },
-        "customerContact": { "type": "string" },
-        "customerEmail": { "type": "string" },
-        "products": { "type": "array" },
-        "notes": { "type": "string" },
-        "totalItems": { "type": "integer" }
-    }
+  "type": "order",
+  "orderId": "ORD-20250501-ABC123",
+  "timestamp": "2025-05-01T10:00:00.000Z",
+  "employeeName": "שם העובד",
+  "employeePhone": "050-0000000",
+  "linkedByEmployee": "יעקב קוץ",
+  "customerId": "1001",
+  "customerName": "חברת אקמה בע\"מ",
+  "products": [
+    { "productId": "soap_big", "productName": "סבון למדיח 24 ק\"ג", "quantity": 2 }
+  ],
+  "notes": "הערה כלשהי",
+  "totalItems": 2
 }
 ```
 
-### Step 3: Add Excel Action
+**צעדים:**
+1. `Excel 365 > Add a Row` — הוסף שורה לטבלת `Orders`
+2. `Webhook Response` — החזר:
+   - Status: `200`
+   - Body: `{"success": true}`
 
-1. Click **+ New step**
-2. Search for "Excel Online (Business)"
-3. Select **Add a row into a table**
-4. Configure:
-   - **Location**: Your SharePoint site
-   - **Document Library**: Documents
-   - **File**: /Orders.xlsx
-   - **Table**: Orders
-   - Map each column to the corresponding trigger output:
-     - orderId: `@{triggerBody()?['orderId']}`
-     - timestamp: `@{triggerBody()?['timestamp']}`
-     - customerId: `@{triggerBody()?['customerId']}`
-     - customerName: `@{triggerBody()?['customerName']}`
-     - customerContact: `@{triggerBody()?['customerContact']}`
-     - customerEmail: `@{triggerBody()?['customerEmail']}`
-     - products: `@{string(triggerBody()?['products'])}`
-     - notes: `@{triggerBody()?['notes']}`
-     - totalItems: `@{triggerBody()?['totalItems']}`
-
-### Step 4: Add Response Action
-
-1. Click **+ New step**
-2. Select **Response**
-3. Configure:
-   - **Status Code**: 200
-   - **Headers**:
-     ```
-     Content-Type: application/json
-     Access-Control-Allow-Origin: *
-     ```
-   - **Body**:
-     ```json
-     {
-       "success": true,
-       "orderId": "@{triggerBody()?['orderId']}"
-     }
-     ```
-
-### Step 5: Save and Get URL
-
-1. Click **Save**
-2. Copy the **HTTP POST URL**
+> הטופס נשלח דרך Netlify Function (`/netlify/functions/submit-order`) שמוסיפה את ה-Webhook URL מ-Environment Variables.
 
 ---
 
-## Configuration
+## תרחיש 3 - רישום פעילות עובדים (Activity Tracking)
 
-### Update config.js
+**טריגר:** Custom Webhook (POST)
 
-Open `config.js` and update the following:
+גוף הבקשה מכיל שדות לפי סוג האירוע:
 
-```javascript
-const CONFIG = {
-    endpoints: {
-        // Paste your Power Automate URLs here
-        getCustomers: 'https://prod-XX.westus.logic.azure.com/workflows/...',
-        saveOrder: 'https://prod-XX.westus.logic.azure.com/workflows/...'
-    },
+| type | שדות |
+|------|------|
+| `link_copied` | employeeId, employeeName, customerId, customerName, timestamp |
+| `link_opened` | employeeId, employeeName, customerId, customerName, timestamp |
 
-    // Change the password (generate new hash)
-    // Run in browser console: CryptoJS.SHA256('your-new-password').toString()
-    passwordHash: 'your-new-hash-here',
+**צעדים:**
+1. `Excel 365 > Add a Row` — הוסף שורה לטבלת `Activity`
+2. `Webhook Response` — החזר status 200
 
-    // Customize your products
-    products: [
-        { id: 'P001', name: 'Your Product 1' },
-        { id: 'P002', name: 'Your Product 2' },
-        // ... add more products
-    ],
-
-    // IMPORTANT: Set to false for production
-    demoMode: false
-};
-```
-
-### Generate Password Hash
-
-To generate a new password hash:
-
-1. Open browser developer console (F12)
-2. Load the page with CryptoJS available
-3. Run: `CryptoJS.SHA256('your-password').toString()`
-4. Copy the result to `passwordHash` in config.js
+**כתובת ה-Webhook** נשמרת בממשק הניהול תחת הגדרות → "Webhook למעקב עובדים".
 
 ---
 
-## Hosting Options
+## תרחיש 4 - קריאת פעילות (Get Activity Log)
 
-### Option 1: SharePoint Document Library (Recommended)
+**טריגר:** Custom Webhook (POST)
 
-1. Upload all files to a SharePoint document library:
-   - index.html
-   - styles.css
-   - app.js
-   - config.js
+**צעדים:**
+1. `Excel 365 > Search Rows` — קרא את כל השורות מטבלת `Activity`
+2. `Webhook Response` — החזר את המערך
 
-2. Get the direct link to index.html
-3. Share with your team
-
-### Option 2: GitHub Pages (Free)
-
-1. Create a GitHub repository
-2. Upload all files
-3. Go to Settings > Pages
-4. Enable GitHub Pages from main branch
-5. Access at: `https://yourusername.github.io/repo-name/`
-
-### Option 3: Azure Static Web Apps (Free Tier)
-
-1. Create an Azure Static Web App
-2. Connect to your GitHub repo
-3. Deploy automatically
+> כתובת זו משמשת את ממשק הניהול לטאב **פעילות**. יש להזינה ידנית בקוד `admin/admin.html` (משתנה `ACTIVITY_WEBHOOK_URL`).
 
 ---
 
-## Testing
+## הגדרת Netlify Function
 
-### Test in Demo Mode First
+קובץ `deploy/netlify/functions/submit-order.js` מקבל את ההזמנה מהטופס ומעביר אותה ל-Make.com.
 
-1. Keep `demoMode: true` in config.js
-2. Open index.html in a browser
-3. Enter password: `123` (default)
-4. Verify:
-   - Customer dropdown loads with demo data
-   - Can add/remove product rows
-   - Order summary updates correctly
-   - Form submission shows success (logged to console)
+משתנה סביבה נדרש ב-Netlify:
 
-### Test with Power Automate
-
-1. Set `demoMode: false` in config.js
-2. Update endpoint URLs
-3. Test customer loading
-4. Submit a test order
-5. Verify order appears in SharePoint Excel
+| Key | Value |
+|-----|-------|
+| `MAKE_WEBHOOK_URL` | כתובת תרחיש 2 (שמירת הזמנה) |
 
 ---
 
-## Troubleshooting
+## פתרון בעיות נפוצות
 
-### "Failed to load customers"
-- Check Power Automate URL is correct
-- Verify the flow is turned on
-- Check CORS headers in flow response
-- Test flow manually in Power Automate
+**"Accepted" במקום JSON בטעינת לקוחות**
+Make.com Custom Webhook מחזיר "Accepted" לבקשות GET. הממשק שולח POST — ודא שהתרחיש פעיל.
 
-### "CORS error"
-- Ensure `Access-Control-Allow-Origin: *` header is in both flows
-- If hosting on SharePoint, the same-origin policy may apply
+**תאי Excel מחזירים אובייקט מקונן**
+Excel 365 מחזיר כל תא כאובייקט `{Value, Formula, ...}`. הממשק מטפל בזה אוטומטית דרך `activityVal()`.
 
-### "Incorrect password"
-- Default password in demo is `123`
-- Verify password hash in config.js matches your password
-- Clear browser localStorage and try again
-
-### Products not saving correctly
-- Check Excel table column names match exactly
-- Verify JSON schema in Power Automate trigger
-- Check for special characters in product names
-
-### Mobile Issues
-- Ensure you're using HTTPS (required for some features)
-- Clear browser cache
-- Try in different browser
-
----
-
-## Security Notes
-
-1. **Password Protection**: The password is a basic deterrent, not enterprise security. For sensitive data, use Azure AD authentication.
-
-2. **Power Automate URLs**: These URLs are "security through obscurity". Anyone with the URL can call the endpoints. For production:
-   - Add API key validation in Power Automate
-   - Use Azure AD authentication
-   - Restrict IP addresses if possible
-
-3. **HTTPS**: Always use HTTPS in production to encrypt data in transit.
-
----
-
-## Support
-
-For issues or questions:
-1. Check the browser console (F12) for errors
-2. Test Power Automate flows independently
-3. Verify SharePoint permissions
+**קישור לקוח לא עובד**
+- ודא שה-`AccountKey` בטבלת Customers תואם למה שמוצג בממשק הניהול
+- הסיסמה של הלקוח = ה-`AccountKey` שלו בדיוק

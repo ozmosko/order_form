@@ -41,15 +41,22 @@ class OrderForm {
             this.prefilledCustomer = { id: customerId, name: customerName };
         }
 
-        // If the link contains an encoded customer password hash, save it to localStorage
+        // Employee who sent the link — resolve ID to name via CONFIG.employeeHashes
+        this.linkedByEmployee = null;
+        this.linkedByEmployeeId = null;
+        const eid = params.get('eid');
+        if (eid) {
+            this.linkedByEmployeeId = eid;
+            const emp = (CONFIG.employeeHashes || []).find(e => e.id === eid);
+            if (emp) this.linkedByEmployee = emp.name;
+        }
+
+        // If the link contains an encoded customer password hash, load it into memory only
+        // (not saved to localStorage - requires re-entry on every new browser session)
         const cph = params.get('h') || params.get('cph');
         if (cph) {
             try {
-                const customerHash = atob(cph);
-                const stored = localStorage.getItem('orderFormEndpoints');
-                const endpoints = stored ? JSON.parse(stored) : {};
-                endpoints.customerPasswordHash = customerHash;
-                localStorage.setItem('orderFormEndpoints', JSON.stringify(endpoints));
+                CONFIG.customerPasswordHash = atob(cph);
             } catch (e) {
                 console.error('Failed to decode customer password hash from link', e);
             }
@@ -59,215 +66,110 @@ class OrderForm {
     }
 
     init() {
-        this.loadEndpointsFromStorage();
         this.checkAuthentication();
         this.setupEventListeners();
-
-        // Only show demo banner in employee mode
-        if (CONFIG.demoMode && !this.customerMode) {
-            document.getElementById('demoBanner').classList.add('visible');
-        }
-    }
-
-    loadEndpointsFromStorage() {
-        const stored = localStorage.getItem('orderFormEndpoints');
-        if (!stored) return;
-        try {
-            const endpoints = JSON.parse(stored);
-            if (endpoints.getCustomers && !this.customerMode) {
-                CONFIG.endpoints.getCustomers = endpoints.getCustomers;
-                CONFIG.demoMode = false;
-            }
-            if (endpoints.customerPasswordHash && this.customerMode) {
-                CONFIG.customerPasswordHash = endpoints.customerPasswordHash;
-            }
-        } catch (e) {
-            console.error('Failed to parse stored endpoints', e);
-        }
     }
 
     // Authentication Methods
     checkAuthentication() {
-        const authData = localStorage.getItem('orderFormAuth');
-        if (authData) {
-            const { timestamp, hash, mode = 'employee', customerId = null } = JSON.parse(authData);
-            const now = Date.now();
-            const expectedHash = this.customerMode ? CONFIG.customerPasswordHash : CONFIG.passwordHash;
-            const expectedMode = this.customerMode ? 'customer' : 'employee';
-            const customerMatches = !this.customerMode ||
-                String(customerId) === String(this.prefilledCustomer.id);
-
-            if (now - timestamp < CONFIG.sessionTimeout &&
-                hash === expectedHash &&
-                mode === expectedMode &&
-                customerMatches) {
-                this.isAuthenticated = true;
-                this.showMainContent();
-                return;
-            }
+        if (!this.customerMode) {
+            // Form accessed without a valid customer link — show error
+            document.getElementById('passwordOverlay').innerHTML = `
+                <div class="password-modal text-center">
+                    <h2><i class="fas fa-exclamation-triangle me-2 text-warning"></i>קישור לא תקין</h2>
+                    <p class="text-muted mt-3">הטופס נגיש רק דרך קישור אישי שנשלח אליך.</p>
+                    <p class="text-muted small">אם אין לך קישור, פנה לנציג נ.י.טנק שלך.</p>
+                </div>`;
+            document.getElementById('passwordOverlay').style.display = 'flex';
+            return;
         }
 
+        const authData = sessionStorage.getItem('orderFormAuth');
+        if (authData) {
+            try {
+                const { timestamp, hash, customerId = null } = JSON.parse(authData);
+                const customerMatches = String(customerId) === String(this.prefilledCustomer.id);
+                if (Date.now() - timestamp < CONFIG.sessionTimeout &&
+                    hash === CONFIG.customerPasswordHash &&
+                    customerMatches) {
+                    this.isAuthenticated = true;
+                    this.showMainContent();
+                    return;
+                }
+            } catch (e) { /* stale / corrupt — fall through to login */ }
+        }
+
+        document.getElementById('passwordInput').placeholder = 'הכנס את מספר הלקוח שלך';
+        const overlayTitle = document.querySelector('#passwordOverlay h2');
+        if (overlayTitle) overlayTitle.innerHTML = '<i class="fas fa-lock me-2"></i>זיהוי לקוח';
         document.getElementById('passwordOverlay').style.display = 'flex';
     }
 
     async verifyPassword(password) {
-        let hash;
-        if (this.customerMode) {
-            hash = await pbkdf2Hash(password);
-        } else {
-            hash = CryptoJS.SHA256(password).toString();
-        }
-        const expectedHash = this.customerMode ? CONFIG.customerPasswordHash : CONFIG.passwordHash;
-
-        if (hash === expectedHash) {
-            localStorage.setItem('orderFormAuth', JSON.stringify({
+        const hash = await pbkdf2Hash(password);
+        if (hash === CONFIG.customerPasswordHash) {
+            sessionStorage.setItem('orderFormAuth', JSON.stringify({
                 timestamp: Date.now(),
-                hash: hash,
-                mode: this.customerMode ? 'customer' : 'employee',
-                customerId: this.customerMode ? this.prefilledCustomer.id : null
+                hash,
+                customerId: this.prefilledCustomer.id
             }));
-
             this.isAuthenticated = true;
             document.getElementById('passwordOverlay').style.display = 'none';
             this.showMainContent();
             return true;
         }
-
         return false;
-    }
-
-    logout() {
-        localStorage.removeItem('orderFormAuth');
-        this.isAuthenticated = false;
-        location.reload();
     }
 
     showMainContent() {
         document.getElementById('mainContainer').classList.add('visible');
 
-        if (this.customerMode) {
-            document.getElementById('customerSelectWrapper').style.display = 'none';
-            const fixed = document.getElementById('customerFixed');
-            fixed.style.display = 'block';
-            fixed.innerHTML = `
-                <div class="p-2 border rounded bg-light">
-                    <i class="fas fa-building me-2 text-primary"></i>
-                    <strong>${this.prefilledCustomer.name}</strong>
-                    <small class="text-muted ms-2">
-                        <i class="fas fa-hashtag me-1"></i>${this.prefilledCustomer.id}
-                    </small>
-                </div>`;
-            // Customers don't know their password - logout just traps them
-            document.getElementById('logoutBtn').style.display = 'none';
-        }
+        document.getElementById('customerSelectWrapper').style.display = 'none';
+        const fixed = document.getElementById('customerFixed');
+        fixed.style.display = 'block';
+        fixed.innerHTML = `
+            <div class="p-2 border rounded bg-light">
+                <i class="fas fa-building me-2 text-primary"></i>
+                <strong>${this.prefilledCustomer.name}</strong>
+                <small class="text-muted ms-2">
+                    <i class="fas fa-hashtag me-1"></i>${this.prefilledCustomer.id}
+                </small>
+            </div>`;
 
-        // Restore last used employee name
-        const savedName = localStorage.getItem('orderFormEmployeeName');
-        if (savedName) document.getElementById('employeeName').value = savedName;
+        document.getElementById('logoutBtn').style.display = 'none';
+
+        // Track link open: tells the manager which employee's link the customer opened
+        if (this.linkedByEmployeeId && CONFIG.trackingWebhookUrl) {
+            fetch(CONFIG.trackingWebhookUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    type: 'link_opened',
+                    employeeId: this.linkedByEmployeeId,
+                    employeeName: this.linkedByEmployee,
+                    customerId: this.prefilledCustomer.id,
+                    customerName: this.prefilledCustomer.name,
+                    timestamp: new Date().toISOString()
+                })
+            }).catch(() => {});
+        }
 
         this.loadCustomers();
         this.addProductRow();
     }
 
     // Customer Loading
-    async loadCustomers() {
-        this.showLoading('טוען לקוחות...');
-
-        try {
-            if (this.customerMode) {
-                this.customers = [this.prefilledCustomer];
-            } else if (CONFIG.demoMode) {
-                await this.simulateDelay(500);
-                this.customers = DEMO_CUSTOMERS;
-            } else {
-                const response = await fetch(CONFIG.endpoints.getCustomers, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({})
-                });
-                if (!response.ok) throw new Error('Failed to load customers');
-                const raw = await response.json();
-                this.customers = raw.map(c => ({
-                    id:      c.AccountKey  ?? c.id,
-                    name:    c.FullName    ?? c.name,
-                    contact: c.contact     || '',
-                    email:   c.email       || ''
-                }));
-            }
-
-            this.populateCustomerDropdown();
-        } catch (error) {
-            console.error('Error loading customers:', error);
-            this.showAlert('טעינת הלקוחות נכשלה. אנא רענן את הדף.', 'danger');
-        } finally {
-            this.hideLoading();
-        }
-    }
-
-    populateCustomerDropdown() {
+    loadCustomers() {
+        this.customers = [this.prefilledCustomer];
+        // Auto-select in the hidden <select> so gatherOrderData() can read it
         const select = document.getElementById('customerSelect');
-
-        select.innerHTML = '<option value="">בחר לקוח...</option>';
-
-        this.customers.forEach(customer => {
-            const option = document.createElement('option');
-            option.value = customer.id;
-            option.textContent = customer.name;
-            option.dataset.contact = customer.contact || '';
-            option.dataset.email = customer.email || '';
-            select.appendChild(option);
-        });
-
-        // In customer mode: auto-select and skip Select2
-        if (this.customerMode) {
-            select.value = this.prefilledCustomer.id;
-            return;
-        }
-
-        // Initialize Select2 with RTL support
-        $(select).select2({
-            theme: 'bootstrap-5',
-            placeholder: 'חפש לקוח...',
-            allowClear: true,
-            width: '100%',
-            dir: 'rtl',
-            language: {
-                noResults: function() {
-                    return 'לא נמצאו תוצאות';
-                },
-                searching: function() {
-                    return 'מחפש...';
-                }
-            }
-        });
-
-        // Handle selection change
-        $(select).on('change', (e) => this.onCustomerChange(e));
+        select.innerHTML = `<option value="${this.prefilledCustomer.id}">${this.prefilledCustomer.name}</option>`;
+        select.value = this.prefilledCustomer.id;
+        this.hideLoading();
     }
 
-    onCustomerChange(e) {
-        const selectedOption = e.target.options[e.target.selectedIndex];
-        const customerInfo = document.getElementById('customerInfo');
-
-        if (selectedOption && selectedOption.value) {
-            const contact = selectedOption.dataset.contact;
-            const email = selectedOption.dataset.email;
-
-            const id = selectedOption.value;
-            const parts = [
-                `<i class="fas fa-hashtag me-1"></i>${id}`,
-                contact ? `<i class="fas fa-user me-1"></i>${contact}` : '',
-                email   ? `<i class="fas fa-envelope me-1"></i>${email}` : ''
-            ].filter(Boolean).join(' | ');
-
-            customerInfo.innerHTML = `<small class="text-muted">${parts}</small>`;
-            customerInfo.style.display = 'block';
-        } else {
-            customerInfo.style.display = 'none';
-        }
-
-        this.updateOrderSummary();
-    }
+    onCustomerChange() {}
+    populateCustomerDropdown() {}
 
     // Product Row Management
     addProductRow() {
@@ -393,10 +295,25 @@ class OrderForm {
     validateForm() {
         const errors = [];
 
+        // Check privacy consent checkbox
+        const consent = document.getElementById('privacyConsent');
+        if (consent && !consent.checked) {
+            errors.push('אנא אשר את מדיניות הפרטיות לפני שליחת ההזמנה');
+        }
+
         // Check employee name
         const employeeName = document.getElementById('employeeName').value.trim();
         if (!employeeName) {
             errors.push('אנא הזן את שם העובד');
+        }
+
+        // Check phone number (optional, but must be valid if provided)
+        const employeePhone = document.getElementById('employeePhone').value.trim();
+        if (employeePhone) {
+            const digits = employeePhone.replace(/[\s\-]/g, '');
+            if (!/^0\d{8,9}$/.test(digits)) {
+                errors.push('מספר הטלפון אינו תקין');
+            }
         }
 
         // Check customer selection
@@ -507,7 +424,6 @@ class OrderForm {
             if (webhookError) {
                 this.showAlert('שליחת ההזמנה נכשלה. אנא נסה שוב.', 'danger');
             } else {
-                localStorage.setItem('orderFormEmployeeName', orderData.employeeName);
                 this.showAlert('ההזמנה נשלחה בהצלחה!', 'success');
                 this.resetForm();
             }
@@ -553,6 +469,8 @@ class OrderForm {
             timestamp: new Date().toISOString(),
             employeeName: employeeName,
             employeePhone: employeePhone,
+            linkedByEmployeeId: this.linkedByEmployeeId || null,
+            linkedByEmployee: this.linkedByEmployee || null,
             customerId: customer?.id,
             customerName: customer?.name,
             customerContact: customer?.contact,
@@ -571,13 +489,7 @@ class OrderForm {
     }
 
     resetForm() {
-        // Reset employee name
-        document.getElementById('employeeName').value = '';
-        document.getElementById('employeePhone').value = '';
-
-        // Reset customer selection
-        $('#customerSelect').val('').trigger('change');
-        document.getElementById('customerInfo').style.display = 'none';
+        // Customer selection is fixed — no reset needed
 
         // Clear product rows
         document.getElementById('productRows').innerHTML = '';
@@ -591,6 +503,10 @@ class OrderForm {
 
         // Clear notes
         document.getElementById('orderNotes').value = '';
+
+        // Reset privacy consent — must be re-confirmed for each new order
+        const consent = document.getElementById('privacyConsent');
+        if (consent) consent.checked = false;
 
         // Update summary
         this.updateOrderSummary();
@@ -630,10 +546,6 @@ class OrderForm {
         }
     }
 
-    simulateDelay(ms) {
-        return new Promise(resolve => setTimeout(resolve, ms));
-    }
-
     // Event Listeners Setup
     setupEventListeners() {
         // Password form
@@ -663,13 +575,6 @@ class OrderForm {
             this.submitOrder();
         });
 
-        // Logout button
-        document.getElementById('logoutBtn').addEventListener('click', () => {
-            if (confirm('האם אתה בטוח שברצונך לצאת?')) {
-                this.logout();
-            }
-        });
-
         // Add product button
         document.getElementById('addProductBtn').addEventListener('click', () => {
             this.addProductRow();
@@ -680,11 +585,9 @@ class OrderForm {
             this.confirmAndSubmit();
         });
 
-        // Show "contact admin" button only in customer mode
-        if (this.customerMode) {
-            const section = document.getElementById('contactAdminSection');
-            if (section) section.style.display = 'block';
-        }
+        // Show "contact admin" button in the password overlay
+        const section = document.getElementById('contactAdminSection');
+        if (section) section.style.display = 'block';
 
         document.getElementById('contactAdminBtn')?.addEventListener('click', () => {
             this.contactAdmin();

@@ -103,17 +103,24 @@
                            placeholder="https://..."
                            required>
                 </div>
-                <hr>
                 <div class="mb-3">
-                    <label class="form-label fw-bold">סיסמת לקוחות</label>
+                    <label class="form-label fw-bold">Webhook למעקב עובדים (Make.com)</label>
                     <input type="text"
-                           id="customerPasswordInput"
+                           id="trackingWebhookUrl"
                            class="form-control"
-                           placeholder="הזן סיסמה ללקוחות">
+                           placeholder="https://hook.make.com/...">
                     <div class="form-text">
-                        סיסמה זו תוטמע בכל קישורי הלקוחות.
-                        לאחר השמירה, צור מחדש את כל הקישורים ושלח ללקוחות.
-                        קישורים ישנים ימשיכו לעבוד עם הסיסמה הקודמת.
+                        כתובת לרישום כל שיתוף קישור לקוח על ידי עובד. לאחר שמירה, הורד config.js ועדכן בתיקיית SharePoint.
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Webhook לצפייה ביומן פעילות (Make.com GET)</label>
+                    <input type="text"
+                           id="activityWebhookUrl"
+                           class="form-control"
+                           placeholder="https://hook.make.com/...">
+                    <div class="form-text">
+                        כתובת Make.com שמחזירה JSON של פעולות עובדים — משמשת ללשונית "פעילות" במנהל.
                     </div>
                 </div>
                 <button type="submit" class="btn btn-primary btn-lg w-100">
@@ -139,18 +146,25 @@
             <div class="app-header">
                 <div>
                     <h1><i class="fas fa-link me-2"></i>יצירת קישורים ללקוחות</h1>
-                    <p class="subtitle mb-0">צור קישור אישי לכל לקוח ושלח אליו</p>
+                    <p class="subtitle mb-0" id="headerSubtitle">צור קישור אישי לכל לקוח ושלח אליו</p>
                 </div>
                 <div class="d-flex gap-2 flex-wrap">
                     <button id="settingsBtn" class="btn btn-outline-secondary btn-logout">
                         <i class="fas fa-cog me-1"></i>הגדרות
                     </button>
-                    <a href="index.html" class="btn btn-outline-primary btn-logout">
-                        <i class="fas fa-clipboard-list me-1"></i>טופס הזמנה
-                    </a>
+                    <button onclick="adminLogout()" class="btn btn-outline-danger btn-logout">
+                        <i class="fas fa-sign-out-alt me-1"></i>התנתק
+                    </button>
                 </div>
             </div>
 
+
+            <!-- Employee greeting -->
+            <div id="employeeGreeting" class="alert alert-primary py-2 mb-3" style="display:none;" dir="rtl">
+                <i class="fas fa-user-circle me-2"></i>
+                <span id="greetingText"></span>
+                <span class="text-muted small ms-2" id="identifiedText"></span>
+            </div>
 
             <!-- Tabs -->
             <ul class="nav nav-tabs mb-3" id="adminTabs">
@@ -164,6 +178,16 @@
                         <i class="fas fa-box me-1"></i>מוצרים
                     </button>
                 </li>
+                <li class="nav-item">
+                    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#employeesTab">
+                        <i class="fas fa-id-badge me-1"></i>עובדים
+                    </button>
+                </li>
+                <li class="nav-item" id="activityTabNav">
+                    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#activityTab">
+                        <i class="fas fa-chart-line me-1"></i>פעילות
+                    </button>
+                </li>
             </ul>
 
             <div class="tab-content">
@@ -173,9 +197,6 @@
                     <div class="d-flex justify-content-between align-items-center mb-3">
                         <h3 class="mb-0">רשימת לקוחות</h3>
                         <div class="d-flex gap-2">
-                            <button type="button" class="btn btn-outline-warning btn-sm" onclick="openTestForm()">
-                                <i class="fas fa-flask me-1"></i>פתח טופס לבדיקה
-                            </button>
                             <button id="refreshBtn" class="btn btn-outline-secondary btn-sm">
                                 <i class="fas fa-sync-alt me-1"></i>רענן
                             </button>
@@ -245,6 +266,60 @@
                     </div>
                 </div>
 
+                <!-- Employees Tab -->
+                <div class="tab-pane fade" id="employeesTab">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h3 class="mb-0">ניהול עובדים</h3>
+                        <button type="button" class="btn btn-outline-primary btn-sm" onclick="addEmployeeRow()">
+                            <i class="fas fa-plus me-1"></i>הוסף עובד
+                        </button>
+                    </div>
+
+                    <p class="text-muted small">
+                        כל עובד ישתמש במספר הטלפון שלו כסיסמה לממשק. לאחר שינויים, הורד config.js (לשונית מוצרים) והעלה לתיקיית SharePoint.
+                    </p>
+
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>שם עובד</th>
+                                    <th>מספר טלפון</th>
+                                    <th style="width: 60px;"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="employeesTableBody"></tbody>
+                        </table>
+                    </div>
+
+                    <div class="alert alert-info py-2 small mt-2">
+                        <strong>לאחר עדכון רשימת העובדים:</strong>
+                        <ol class="mb-0 mt-1">
+                            <li>לחץ "הורד config.js" בלשונית המוצרים</li>
+                            <li>החלף את קובץ config.js בתיקיית SharePoint בקובץ שהורד</li>
+                            <li>עובדים חדשים יוכלו להתחבר לאחר הסנכרון</li>
+                        </ol>
+                    </div>
+
+                    <div class="alert alert-warning py-2 small mt-2">
+                        <i class="fas fa-exclamation-triangle me-1"></i>
+                        <strong>שים לב:</strong> מספרי הטלפון נשמרים בדפדפן המנהל בלבד ואינם כלולים ב-config.js. לשינוי טלפון של עובד — מחק את השורה והוסף מחדש.
+                    </div>
+                </div>
+
+                <!-- Activity Tab -->
+                <div class="tab-pane fade" id="activityTab">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h3 class="mb-0">יומן פעילות עובדים</h3>
+                        <button class="btn btn-outline-secondary btn-sm" onclick="loadActivityLog()">
+                            <i class="fas fa-sync-alt me-1"></i>רענן
+                        </button>
+                    </div>
+                    <div id="activityLog">
+                        <p class="text-muted small">לחץ "רענן" לטעינת הנתונים.</p>
+                    </div>
+                </div>
+
             </div>
 
         </div>
@@ -297,13 +372,57 @@
         function isAuthenticated() {
             try {
                 const { timestamp, hash } = JSON.parse(localStorage.getItem(AUTH_KEY));
-                return Date.now() - timestamp < CONFIG.sessionTimeout &&
-                       hash === CONFIG.passwordHash;
+                if (Date.now() - timestamp >= CONFIG.sessionTimeout) return false;
+                const isEmployee = (CONFIG.employeeHashes || []).some(e => e.hash === hash);
+                return hash === CONFIG.passwordHash || isEmployee;
             } catch (e) { return false; }
         }
 
-        function storeAuth(hash) {
-            localStorage.setItem(AUTH_KEY, JSON.stringify({ timestamp: Date.now(), hash }));
+        function isMasterAdmin() {
+            try {
+                const { hash } = JSON.parse(localStorage.getItem(AUTH_KEY));
+                return hash === CONFIG.passwordHash;
+            } catch (e) { return false; }
+        }
+
+        function storeAuth(hash, employeeName = null, employeeId = null) {
+            localStorage.setItem(AUTH_KEY, JSON.stringify({ timestamp: Date.now(), hash, employeeName, employeeId }));
+        }
+
+        function getAuthenticatedEmployee() {
+            try { return JSON.parse(localStorage.getItem(AUTH_KEY)).employeeName || null; }
+            catch (e) { return null; }
+        }
+
+        function getAuthenticatedEmployeeId() {
+            try { return JSON.parse(localStorage.getItem(AUTH_KEY)).employeeId || null; }
+            catch (e) { return null; }
+        }
+
+        function applyAccessLevel(isMaster) {
+            if (!isMaster) {
+                const productsTabBtn = document.querySelector('[data-bs-target="#productsTab"]')?.parentElement;
+                const employeesTabBtn = document.querySelector('[data-bs-target="#employeesTab"]')?.parentElement;
+                const activityTabBtn = document.getElementById('activityTabNav');
+                const settingsBtn = document.getElementById('settingsBtn');
+                if (productsTabBtn) productsTabBtn.style.display = 'none';
+                if (employeesTabBtn) employeesTabBtn.style.display = 'none';
+                if (activityTabBtn) activityTabBtn.style.display = 'none';
+                if (settingsBtn) settingsBtn.style.display = 'none';
+
+                const employeeName = getAuthenticatedEmployee();
+                if (employeeName) {
+                    const firstName = employeeName.split(' ')[0];
+                    document.getElementById('greetingText').textContent = `היי ${firstName}!`;
+                    document.getElementById('identifiedText').textContent = `משתמש מזוהה: ${employeeName}`;
+                    document.getElementById('employeeGreeting').style.display = 'block';
+                }
+            }
+        }
+
+        function adminLogout() {
+            localStorage.removeItem(AUTH_KEY);
+            location.reload();
         }
 
         // ── UI helpers ───────────────────────────────────────────────────
@@ -312,25 +431,37 @@
         function showMain()    { document.getElementById('mainContainer').classList.add('visible'); }
 
         function getFormBaseUrl() {
-            return getEndpoints().formBaseUrl ||
+            return CONFIG.formBaseUrl ||
+                getEndpoints().formBaseUrl ||
                 window.location.href.replace(/\/admin\.html.*$/, '/index.html');
         }
 
-        function generateLink(customer) {
+        async function generateLink(customer) {
             const base = getFormBaseUrl();
-            const endpoints = getEndpoints();
-            const customerHash = endpoints.customerPasswordHash || '';
-            const cph = customerHash ? '&h=' + btoa(customerHash) : '';
+            // Password = customer ID (PBKDF2 hash), unique per customer, fixed forever
+            const hash = await pbkdf2Hash(String(customer.id));
+            const cph = '&h=' + btoa(hash);
             // base64-encode the customer name to avoid long %D7%XX Hebrew encoding
             const encodedName = btoa(unescape(encodeURIComponent(customer.name)));
-            return `${base}?cid=${encodeURIComponent(customer.id)}&cn=${encodedName}${cph}`;
+            // Embed employee ID so the form can attribute the link to an employee
+            const employeeId = getAuthenticatedEmployeeId();
+            const eid = employeeId ? '&eid=' + encodeURIComponent(employeeId) : '';
+            return `${base}?cid=${encodeURIComponent(customer.id)}&cn=${encodedName}${cph}${eid}`;
         }
 
         // ── Customer loading ─────────────────────────────────────────────
         async function loadAndDisplayCustomers() {
             const webhookUrl = getWebhookUrl();
             if (!webhookUrl) {
-                document.getElementById('setupOverlay').style.display = 'flex';
+                if (isMasterAdmin()) {
+                    document.getElementById('setupOverlay').style.display = 'flex';
+                } else {
+                    document.getElementById('customerTableBody').innerHTML = `
+                        <tr><td colspan="3" class="text-center text-muted py-4">
+                            <i class="fas fa-exclamation-circle me-2"></i>
+                            המערכת אינה מוגדרת. פנה למנהל המערכת.
+                        </td></tr>`;
+                }
                 return;
             }
 
@@ -356,12 +487,10 @@
                             <i class="fas fa-exclamation-circle me-2"></i>
                             טעינת הלקוחות נכשלה. בדוק את כתובת ה-Webhook.
                             <br>
-                            <div class="d-flex gap-2 justify-content-center mt-2">
+                            ${isMasterAdmin() ? `<div class="d-flex gap-2 justify-content-center mt-2">
                                 <button class="btn btn-sm btn-outline-danger"
                                         onclick="openSetup()">עדכן כתובת Webhook</button>
-                                <button class="btn btn-sm btn-outline-warning"
-                                        onclick="openTestForm()"><i class="fas fa-flask me-1"></i>פתח טופס לבדיקה</button>
-                            </div>
+                            </div>` : ''}
                         </td>
                     </tr>`;
             } finally {
@@ -379,35 +508,59 @@
             renderRows(allCustomers);
         }
 
-        function renderRows(customers) {
+        async function renderRows(customers) {
             const tbody = document.getElementById('customerTableBody');
             if (!customers.length) {
                 tbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted py-4">לא נמצאו לקוחות</td></tr>';
                 return;
             }
-            tbody.innerHTML = customers.map(customer => {
-                const link = generateLink(customer);
-                return `
+            // Pre-generate all links (async PBKDF2 per customer)
+            const links = await Promise.all(customers.map(c => generateLink(c)));
+            tbody.innerHTML = customers.map((customer, i) => `
                     <tr>
                         <td class="fw-bold">${customer.name}</td>
                         <td class="text-muted">${customer.id}</td>
                         <td>
-                            <button class="btn btn-sm btn-outline-primary me-1"
-                                    onclick="copyLink('${link}', this)"
+                            <button class="btn btn-sm btn-outline-primary me-1 copy-link-btn"
+                                    data-link="${links[i]}"
+                                    data-customer-id="${customer.id}"
+                                    data-customer-name="${encodeURIComponent(customer.name)}"
                                     title="העתק קישור">
                                 <i class="fas fa-copy"></i>
                             </button>
-                            <a class="btn btn-sm btn-outline-secondary"
-                               href="${link}" target="_blank"
+                            <a class="btn btn-sm btn-outline-secondary open-link-btn"
+                               href="${links[i]}" target="_blank"
+                               data-link="${links[i]}"
+                               data-customer-id="${customer.id}"
+                               data-customer-name="${encodeURIComponent(customer.name)}"
                                title="פתח טופס">
                                 <i class="fas fa-external-link-alt"></i>
                             </a>
                         </td>
-                    </tr>`;
-            }).join('');
+                    </tr>`).join('');
         }
 
-        function copyLink(link, btn) {
+        function trackActivity(type, customer) {
+            const employeeName = getAuthenticatedEmployee();
+            const employeeId   = getAuthenticatedEmployeeId();
+            const trackingUrl  = CONFIG.trackingWebhookUrl || getEndpoints().trackingWebhookUrl;
+            if (trackingUrl && employeeName && customer) {
+                fetch(trackingUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        type,
+                        employeeId,
+                        employeeName,
+                        customerId: customer.id,
+                        customerName: customer.name,
+                        timestamp: new Date().toISOString()
+                    })
+                }).catch(err => console.warn('Tracking failed:', err));
+            }
+        }
+
+        function copyLink(link, btn, customer) {
             navigator.clipboard.writeText(link).then(() => {
                 btn.innerHTML = '<i class="fas fa-check"></i>';
                 btn.classList.replace('btn-outline-primary', 'btn-success');
@@ -415,29 +568,129 @@
                     btn.innerHTML = '<i class="fas fa-copy"></i>';
                     btn.classList.replace('btn-success', 'btn-outline-primary');
                 }, 2000);
+                trackActivity('link_copied', customer);
             });
         }
 
         function openSetup() {
             const endpoints = getEndpoints();
-            if (endpoints.formBaseUrl)  document.getElementById('formBaseUrl').value          = endpoints.formBaseUrl;
-            if (endpoints.getCustomers) document.getElementById('webhookGetCustomers').value   = endpoints.getCustomers;
-            document.getElementById('customerPasswordInput').value = endpoints.customerPassword || '';
+            if (endpoints.formBaseUrl)  document.getElementById('formBaseUrl').value        = endpoints.formBaseUrl;
+            if (endpoints.getCustomers) document.getElementById('webhookGetCustomers').value = endpoints.getCustomers;
+            document.getElementById('trackingWebhookUrl').value  = CONFIG.trackingWebhookUrl  || endpoints.trackingWebhookUrl  || '';
+            document.getElementById('activityWebhookUrl').value  = endpoints.activityWebhookUrl || '';
             // Show cancel only when URLs are already configured (not first-time setup)
             document.querySelector('#setupForm .btn-outline-secondary').style.display =
                 endpoints.getCustomers ? 'block' : 'none';
             document.getElementById('setupOverlay').style.display = 'flex';
         }
 
-        // ── Test form ────────────────────────────────────────────────────
-        function openTestForm() {
-            const base = getFormBaseUrl();
+        // ── Activity tab ─────────────────────────────────────────────────
+        let activityData = [];
+
+        const TYPE_META = {
+            link_copied:       { label: 'העתקת קישור',            badge: 'bg-primary' },
+            link_opened_admin: { label: 'פתיחה מהמנהל',           badge: 'bg-warning text-dark' },
+            link_opened:       { label: 'פתיחת קישור על ידי לקוח', badge: 'bg-success' }
+        };
+
+        function activityVal(f) {
+            return (f && typeof f === 'object') ? (f.Value ?? '') : (f ?? '');
+        }
+
+        function normaliseActivity(r) {
+            return {
+                type:         activityVal(r['סוג אירוע'])  || activityVal(r.type)         || '',
+                employeeName: activityVal(r['שם העובד'])   || activityVal(r.employeeName)  || '',
+                employeeId:   activityVal(r['מזהה עובד'])  || activityVal(r.employeeId)    || '',
+                customerName: activityVal(r['שם לקוח'])    || activityVal(r.customerName)  || '',
+                customerId:   activityVal(r['מזהה לקוח'])  || activityVal(r.customerId)    || '',
+                timestamp:    activityVal(r['תאריך ושעה']) || activityVal(r.timestamp)     || ''
+            };
+        }
+
+        function parseActivityDate(v) {
+            if (!v) return null;
+            const m = String(v).match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})/);
+            if (m) return new Date(+m[3], +m[2]-1, +m[1], +m[4], +m[5]);
+            return new Date(v);
+        }
+
+        function renderActivityTable() {
+            const emp = document.getElementById('activityFilterEmployee')?.value || '';
+            const cust = document.getElementById('activityFilterCustomer')?.value || '';
+            const filtered = activityData.filter(r =>
+                (!emp  || r.employeeName === emp) &&
+                (!cust || r.customerName === cust)
+            );
+            const tbody = document.getElementById('activityTbody');
+            if (!tbody) return;
+            tbody.innerHTML = filtered.length ? filtered.map(r => {
+                const d = parseActivityDate(r.timestamp);
+                const dateStr = d && !isNaN(d) ? d.toLocaleString('he-IL') : (r.timestamp || '-');
+                const meta = TYPE_META[r.type] || { label: r.type || '-', badge: 'bg-secondary' };
+                return `<tr>
+                    <td class="text-muted small">${dateStr}</td>
+                    <td>${r.employeeName || '-'}</td>
+                    <td>${r.customerName || '-'}</td>
+                    <td class="text-muted">${r.customerId || '-'}</td>
+                    <td><span class="badge ${meta.badge}">${meta.label}</span></td>
+                </tr>`;
+            }).join('') : '<tr><td colspan="5" class="text-center text-muted py-3">אין תוצאות</td></tr>';
+        }
+
+        async function loadActivityLog() {
             const endpoints = getEndpoints();
-            const customerHash = endpoints.customerPasswordHash || '';
-            const cph = customerHash ? '&h=' + btoa(customerHash) : '';
-            const encodedName = btoa(unescape(encodeURIComponent('שם לקוח לבדיקה בלבד')));
-            const url = `${base}?cid=12345678&cn=${encodedName}${cph}`;
-            window.open(url, '_blank');
+            const url = endpoints.activityWebhookUrl;
+            const container = document.getElementById('activityLog');
+            if (!url) {
+                container.innerHTML = '<p class="text-muted small">הגדר Webhook לצפייה בפעילות בהגדרות.</p>';
+                return;
+            }
+            container.innerHTML = '<p class="text-muted small"><i class="fas fa-spinner fa-spin me-2"></i>טוען...</p>';
+            try {
+                const res = await fetch(url, { method: 'POST' });
+                if (!res.ok) throw new Error('fetch failed');
+                let rows = await res.json();
+                if (rows && typeof rows.json === 'string') rows = JSON.parse(rows.json);
+                if (!Array.isArray(rows) || !rows.length) {
+                    container.innerHTML = '<p class="text-muted small">אין פעילות עדיין.</p>';
+                    return;
+                }
+
+                activityData = rows.map(normaliseActivity).sort((a, b) => {
+                    const da = parseActivityDate(a.timestamp), db = parseActivityDate(b.timestamp);
+                    return (db || 0) - (da || 0);
+                });
+
+                // Build unique employee and customer lists for filters
+                const employees = [...new Set(activityData.map(r => r.employeeName).filter(Boolean))].sort();
+                const customers = [...new Set(activityData.map(r => r.customerName).filter(Boolean))].sort((a,b) => a.localeCompare(b,'he'));
+
+                container.innerHTML = `
+                    <div class="d-flex gap-2 mb-3 flex-wrap">
+                        <select id="activityFilterEmployee" class="form-select form-select-sm" style="max-width:200px" onchange="renderActivityTable()">
+                            <option value="">כל העובדים</option>
+                            ${employees.map(e => `<option>${e}</option>`).join('')}
+                        </select>
+                        <select id="activityFilterCustomer" class="form-select form-select-sm" style="max-width:220px" onchange="renderActivityTable()">
+                            <option value="">כל הלקוחות</option>
+                            ${customers.map(c => `<option>${c}</option>`).join('')}
+                        </select>
+                        <span class="text-muted small align-self-center">${activityData.length} אירועים</span>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover align-middle">
+                            <thead class="table-light">
+                                <tr><th>תאריך/שעה</th><th>עובד</th><th>לקוח</th><th>מזהה לקוח</th><th>פעולה</th></tr>
+                            </thead>
+                            <tbody id="activityTbody"></tbody>
+                        </table>
+                    </div>`;
+                renderActivityTable();
+            } catch (e) {
+                console.error('Activity log fetch error:', e);
+                container.innerHTML = `<p class="text-danger small"><i class="fas fa-exclamation-circle me-1"></i>טעינת הנתונים נכשלה: <code>${e.message}</code></p>`;
+            }
         }
 
         // ── Products tab ─────────────────────────────────────────────────
@@ -470,6 +723,43 @@
             row.querySelector('.product-name').focus();
         }
 
+        // ── Employees tab ─────────────────────────────────────────────────
+        function generateEmployeeId() {
+            return Array.from(crypto.getRandomValues(new Uint8Array(3)))
+                .map(b => b.toString(16).padStart(2, '0')).join('');
+        }
+
+        function loadEmployeesTab() {
+            const tbody = document.getElementById('employeesTableBody');
+            tbody.innerHTML = '';
+            // config now stores {id, name, phone, hash} — show all fields
+            (CONFIG.employeeHashes || []).forEach(e => tbody.appendChild(createEmployeeRow(e.id || '', e.name, e.phone || '')));
+        }
+
+        function createEmployeeRow(id = '', name = '', phone = '') {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <input type="hidden" class="employee-id" value="${id}">
+                <td><input type="text" class="form-control form-control-sm employee-name"
+                           value="${name.replace(/"/g, '&quot;')}" placeholder="שם עובד..."></td>
+                <td><input type="text" class="form-control form-control-sm employee-phone"
+                           value="${phone}" placeholder="05xxxxxxxx" dir="ltr"></td>
+                <td>
+                    <button type="button" class="btn btn-sm btn-outline-danger"
+                            onclick="this.closest('tr').remove()" title="מחק">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </td>`;
+            return tr;
+        }
+
+        function addEmployeeRow() {
+            const tbody = document.getElementById('employeesTableBody');
+            const row = createEmployeeRow(generateEmployeeId());
+            tbody.appendChild(row);
+            row.querySelector('.employee-name').focus();
+        }
+
         function downloadConfig() {
             const rows = document.querySelectorAll('#productsTableBody tr');
             const products = Array.from(rows)
@@ -488,9 +778,28 @@
                 .map(p => `        { id: '${p.id}', name: '${p.name.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}' }`)
                 .join(',\n');
 
+            // Gather employees from table — each row has hidden id + name + phone fields
+            const employeeRows = document.querySelectorAll('#employeesTableBody tr');
+            const existingHashes = CONFIG.employeeHashes || [];
+            const employees = Array.from(employeeRows).map(tr => {
+                const id    = (tr.querySelector('.employee-id')?.value   || '').trim();
+                const name  = (tr.querySelector('.employee-name')?.value || '').trim();
+                const phone = (tr.querySelector('.employee-phone')?.value || '').trim();
+                if (!name) return null;
+                // Compute hash from phone if provided; otherwise preserve existing hash by id or name
+                const hash = phone
+                    ? CryptoJS.SHA256(phone).toString()
+                    : (existingHashes.find(h => h.id === id || h.name === name)?.hash || '');
+                return { id: id || generateEmployeeId(), name, phone, hash };
+            }).filter(Boolean);
+            const employeesStr = JSON.stringify(employees, null, 4)
+                .split('\n').map((line, i) => i === 0 ? line : '    ' + line).join('\n');
+
+            const formBaseUrlVal = (getEndpoints().formBaseUrl || CONFIG.formBaseUrl || '').replace(/'/g, "\\'");
+            const trackingUrlVal = (CONFIG.trackingWebhookUrl || getEndpoints().trackingWebhookUrl || '').replace(/'/g, "\\'");
+
             const content =
 `// קובץ הגדרות בסיסי - ערכי ברירת מחדל
-// אל תכניס כתובות אמיתיות כאן
 
 const CONFIG = {
     // כתובת לטעינת רשימת לקוחות - מוגדרת דרך ממשק המנהל ונשמרת ב-localStorage
@@ -498,11 +807,21 @@ const CONFIG = {
         getCustomers: ''
     },
 
-    // האש סיסמת עובדים (SHA-256) - ליצירת האש: פתח את admin.html ← שכחת סיסמה?
+    // האש סיסמת מנהל (SHA-256) - ליצירת האש: פתח את admin.html ← שכחת סיסמה?
     passwordHash: '${CONFIG.passwordHash}',
 
-    // האש סיסמת לקוחות - נטען אוטומטית מתוך קישור הלקוח (פרמטר cph)
+    // האש סיסמת לקוחות - נטען אוטומטית מתוך קישור הלקוח (פרמטר h) - אין צורך לשנות
     customerPasswordHash: '',
+
+    // כתובת הטופס הציבורי - מוטמע כאן לשיתוף אוטומטי עם עובדים דרך SharePoint
+    formBaseUrl: '${formBaseUrlVal}',
+
+    // רשימת עובדים מורשים - כל רשומה: { id, name, phone, hash }
+    // לניהול הרשימה: פתח ממשק מנהל - לשונית עובדים - הורד config.js
+    employeeHashes: ${employeesStr},
+
+    // כתובת Make.com לרישום שיתוף קישורים על ידי עובדים (ריק = ללא מעקב)
+    trackingWebhookUrl: '${trackingUrlVal}',
 
     // זמן פקיעת הפעלה (ברירת מחדל: 8 שעות)
     sessionTimeout: 8 * 60 * 60 * 1000,
@@ -535,13 +854,21 @@ const DEMO_CUSTOMERS = ${JSON.stringify(DEMO_CUSTOMERS, null, 4)};
             // Password form
             document.getElementById('passwordForm').addEventListener('submit', e => {
                 e.preventDefault();
-                const hash = CryptoJS.SHA256(document.getElementById('passwordInput').value).toString();
-                if (hash === CONFIG.passwordHash) {
-                    storeAuth(hash);
+                const input = document.getElementById('passwordInput').value;
+                const hash = CryptoJS.SHA256(input).toString();
+                const masterMatch = hash === CONFIG.passwordHash;
+                const matchedEmployee = (CONFIG.employeeHashes || []).find(emp => emp.hash === hash);
+
+                if (masterMatch || matchedEmployee) {
+                    storeAuth(hash, matchedEmployee ? matchedEmployee.name : null, matchedEmployee ? matchedEmployee.id : null);
                     document.getElementById('passwordOverlay').style.display = 'none';
+                    applyAccessLevel(masterMatch);
                     showMain();
                     loadAndDisplayCustomers();
-                    loadProductsTab();
+                    if (masterMatch) {
+                        loadProductsTab();
+                        loadEmployeesTab();
+                    }
                 } else {
                     document.getElementById('passwordError').style.display = 'block';
                     document.getElementById('passwordInput').value = '';
@@ -550,20 +877,20 @@ const DEMO_CUSTOMERS = ${JSON.stringify(DEMO_CUSTOMERS, null, 4)};
             });
 
             // Webhook setup form
-            document.getElementById('setupForm').addEventListener('submit', async e => {
+            document.getElementById('setupForm').addEventListener('submit', e => {
                 e.preventDefault();
                 const btn = e.target.querySelector('button[type="submit"]');
                 btn.disabled = true;
                 btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>שומר...';
 
                 const endpoints = getEndpoints();
-                endpoints.formBaseUrl  = document.getElementById('formBaseUrl').value.trim();
-                endpoints.getCustomers = document.getElementById('webhookGetCustomers').value.trim();
-                const customerPw = document.getElementById('customerPasswordInput').value.trim();
-                if (customerPw) {
-                    endpoints.customerPassword     = customerPw;
-                    endpoints.customerPasswordHash = await pbkdf2Hash(customerPw);
-                }
+                endpoints.formBaseUrl         = document.getElementById('formBaseUrl').value.trim();
+                endpoints.getCustomers        = document.getElementById('webhookGetCustomers').value.trim();
+                endpoints.trackingWebhookUrl  = document.getElementById('trackingWebhookUrl').value.trim();
+                endpoints.activityWebhookUrl  = document.getElementById('activityWebhookUrl').value.trim();
+                // Also update CONFIG in memory so tracking works immediately without reload
+                CONFIG.trackingWebhookUrl = endpoints.trackingWebhookUrl;
+                if (endpoints.formBaseUrl) CONFIG.formBaseUrl = endpoints.formBaseUrl;
                 localStorage.setItem(ENDPOINTS_KEY, JSON.stringify(endpoints));
                 btn.disabled = false;
                 btn.innerHTML = '<i class="fas fa-save me-2"></i>שמור';
@@ -595,6 +922,26 @@ const DEMO_CUSTOMERS = ${JSON.stringify(DEMO_CUSTOMERS, null, 4)};
             // Refresh button
             document.getElementById('refreshBtn').addEventListener('click', loadAndDisplayCustomers);
 
+            // Delegated click handler for copy and open-link buttons
+            document.getElementById('customerTableBody').addEventListener('click', e => {
+                const copyBtn = e.target.closest('.copy-link-btn');
+                if (copyBtn) {
+                    copyLink(
+                        copyBtn.dataset.link,
+                        copyBtn,
+                        { id: copyBtn.dataset.customerId, name: decodeURIComponent(copyBtn.dataset.customerName) }
+                    );
+                    return;
+                }
+                const openBtn = e.target.closest('.open-link-btn');
+                if (openBtn) {
+                    // Navigation proceeds normally; just fire tracking
+                    trackActivity('link_opened_admin',
+                        { id: openBtn.dataset.customerId, name: decodeURIComponent(openBtn.dataset.customerName) }
+                    );
+                }
+            });
+
             // ── Password management helpers ──────────────────────────────────
         function copyLine(inputId, btn) {
             navigator.clipboard.writeText(document.getElementById(inputId).value).then(() => {
@@ -618,9 +965,14 @@ const DEMO_CUSTOMERS = ${JSON.stringify(DEMO_CUSTOMERS, null, 4)};
 
             // Check auth on load
             if (isAuthenticated()) {
+                const master = isMasterAdmin();
+                applyAccessLevel(master);
                 showMain();
                 loadAndDisplayCustomers();
-                loadProductsTab();
+                if (master) {
+                    loadProductsTab();
+                    loadEmployeesTab();
+                }
             } else {
                 document.getElementById('passwordOverlay').style.display = 'flex';
             }

@@ -8,10 +8,6 @@
     <!-- Bootstrap 5 CSS RTL -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.rtl.min.css" rel="stylesheet">
 
-    <!-- Select2 CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet">
-
     <!-- Font Awesome (self-hosted for reliable mobile loading) -->
     <link href="fontawesome/css/all.min.css" rel="stylesheet">
 
@@ -19,12 +15,6 @@
     <link href="styles.css" rel="stylesheet">
 </head>
 <body>
-    <!-- Demo Mode Banner -->
-    <div id="demoBanner" class="demo-banner">
-        <i class="fas fa-flask me-1"></i>
-        מצב הדגמה - משתמש בנתונים לדוגמה. הגדר את MAKE_WEBHOOK_URL ב-Netlify לייצור.
-    </div>
-
     <!-- Password Overlay -->
     <div id="passwordOverlay" class="password-overlay" style="display: none;">
         <div class="password-modal">
@@ -85,14 +75,12 @@
             <div class="app-header">
                 <div>
                     <h1><i class="fas fa-clipboard-list me-2"></i>טופס הזמנה</h1>
-                    <p class="subtitle mb-0">יצירת הזמנה חדשה ללקוח</p>
+                    <p class="subtitle mb-0">יצירת הזמנה חדשה</p>
                 </div>
-                <button id="logoutBtn" class="btn btn-outline-secondary btn-logout">
-                    <i class="fas fa-sign-out-alt me-1"></i>יציאה
-                </button>
             </div>
+            <div id="logoutBtn" style="display:none;"></div>
 
-            <form id="orderForm">
+            <form id="orderForm" novalidate>
                 <!-- Employee Name -->
                 <div class="employee-section">
                     <div class="section-header">
@@ -170,19 +158,78 @@
                               placeholder="הוסף הוראות מיוחדות או הערות להזמנה זו..."></textarea>
                 </div>
 
+                <!-- Privacy policy consent checkbox -->
+                <div class="form-check mb-3 mt-3 d-flex align-items-start gap-2">
+                    <input class="form-check-input mt-1 flex-shrink-0" type="checkbox" id="privacyConsent" required>
+                    <label class="form-check-label small" for="privacyConsent">
+                        קראתי ואני מסכים/ה ל<a href="#" data-bs-toggle="modal" data-bs-target="#privacyModal">מדיניות הפרטיות</a> של החברה.
+                    </label>
+                </div>
+
                 <!-- Submit Button -->
                 <button type="submit" class="btn btn-success btn-submit">
                     <i class="fas fa-paper-plane me-2"></i>שלח הזמנה
                 </button>
+
+                <!-- Legal notice near submit -->
+                <p class="text-muted small text-center mt-2 mb-0">
+                    בלחיצה על "שלח הזמנה" אתה מאשר כי ההזמנה מחייבת.
+                    לביטול או שינוי הזמנה לאחר שליחתה, אנא צור קשר עם חברת נ.י.טנק בע״מ בטלפון [מספר טלפון] או במייל [כתובת מייל].
+                    שנוי/ביטול ההזמנה לאחר שליחתה אפשרי רק בכפוף לאישור החברה בכתב.
+                </p>
             </form>
         </div>
 
         <!-- Footer -->
         <div class="app-footer">
-            <p class="mb-0">
-                <i class="fas fa-info-circle me-1"></i>
-                הזמנות נשלחות ל-Make.com באופן אוטומטי
-            </p>
+            <div class="text-center text-muted small px-3 py-2" style="line-height: 1.8;">
+                <p class="mb-1">
+                    <strong>הצהרת פרטיות:</strong>
+                    המידע שתמסור בטופס זה (לרבות שם, טלפון ופרטי הזמנה) נאסף ומשמש אך ורק לצורך ביצוע ועיבוד הזמנתך או הזמנות עתידיות על ידי נ.י.טנק בע״מ.
+                    המידע מועבר למערכות עיבוד חיצוניות לצורך ניהול ההזמנות ואינו נמסר לצדדים שלישיים נוספים ללא הסכמתך.
+                </p>
+                <p class="mb-1">
+                    בהתאם לחוק הגנת הפרטיות, תשמ"א-1981, יש לך הזכות לעיין במידע המוחזק אודותיך, לתקנו או לבקש את מחיקתו.
+                    לפניות בנושא פרטיות: [כתובת מייל לפניות פרטיות].
+                </p>
+                <p class="mb-0">
+                    [שם החברה] | [כתובת] | [טלפון] | [מייל]
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Privacy Policy Modal -->
+    <div class="modal fade" id="privacyModal" tabindex="-1" dir="rtl">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-shield-alt me-2"></i>מדיניות פרטיות</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" style="line-height: 1.8;">
+                    <h6 class="fw-bold">איזה מידע נאסף</h6>
+                    <p>בעת מילוי הטופס נאספים פרטים כגון שם, מספר טלפון ופרטי הזמנה.</p>
+
+                    <h6 class="fw-bold">מטרת השימוש במידע</h6>
+                    <p>המידע משמש לצורך טיפול בהזמנה, יצירת קשר במידת הצורך ומתן שירות ללקוח בלבד.</p>
+
+                    <h6 class="fw-bold">אחסון המידע</h6>
+                    <p>המידע נשמר בקבצי נתונים (כגון Excel) בסביבה המאובטחת של החברה ואינו מועבר לגורמים חיצוניים שלא לצורך תפעול השירות.</p>
+
+                    <h6 class="fw-bold">שימוש בשירותי צד שלישי</h6>
+                    <p>לצורך תפעול המערכת, המידע עובר עיבוד באמצעות שירותים חיצוניים, המשמשים להעברת הנתונים בלבד.</p>
+
+                    <h6 class="fw-bold">שמירה על המידע</h6>
+                    <p>הגישה למידע מוגבלת לגורמים מורשים בלבד בחברה, וננקטים אמצעים מקובלים לשמירה על המידע מפני גישה בלתי מורשית.</p>
+
+                    <h6 class="fw-bold">זכויות ופניות</h6>
+                    <p class="mb-0">ניתן לפנות לעסק בכל שאלה או בקשה הקשורה למידע שנמסר, לרבות בקשה לעיון, תיקון או מחיקה.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-primary" data-bs-dismiss="modal">הבנתי</button>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -205,17 +252,8 @@
         </div>
     </div>
 
-    <!-- jQuery (required for Select2) -->
-    <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
-
     <!-- Bootstrap 5 JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-
-    <!-- Select2 JS -->
-    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
-
-    <!-- CryptoJS for password hashing -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.2.0/crypto-js.min.js"></script>
 
     <!-- App Configuration -->
     <script src="config.js"></script>

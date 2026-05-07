@@ -13,7 +13,7 @@ const CONFIG = {
     customerPasswordHash: '',
 
     // כתובת הטופס הציבורי - מוטמע כאן לשיתוף אוטומטי עם עובדים דרך SharePoint
-    formBaseUrl: 'https://nitank-form.netlify.app/index.html',
+    formBaseUrl: 'https://nitank-order-form.netlify.app/index.html',
 
     // רשימת עובדים מורשים - כל רשומה: { id, name, phone, hash }
     // לניהול הרשימה: פתח ממשק מנהל - לשונית עובדים - הורד config.js

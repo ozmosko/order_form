@@ -431,8 +431,8 @@
         function showMain()    { document.getElementById('mainContainer').classList.add('visible'); }
 
         function getFormBaseUrl() {
-            return CONFIG.formBaseUrl ||
-                getEndpoints().formBaseUrl ||
+            return getEndpoints().formBaseUrl ||
+                CONFIG.formBaseUrl ||
                 window.location.href.replace(/\/admin\.html.*$/, '/index.html');
         }
 

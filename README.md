@@ -113,12 +113,25 @@ Netlify מזהה push ל-`production` ומפרוס אוטומטית.
 
 ## הפצת ממשק הניהול לעובדים
 
-העלה לתיקיית SharePoint משותפת את הקבצים:
-- `admin/admin.html`
-- `admin/config.js`
-- `admin/order-form-console.bat` (קובץ הפעלה - לחיצה כפולה פותחת את הממשק)
+צור את מבנה התיקיות הבא ב-SharePoint:
 
-לאחר כל עדכון של `config.js` - החלף את הקובץ בתיקיית SharePoint.
+```
+Order Form/                        ← תיקייה זו בלבד נגישה לעובדים
+    פתח ממשק הזמנות.bat            ← הקובץ היחיד שהעובד רואה
+
+Order Form/app/                    ← עובדים לא צריכים לפתוח תיקייה זו
+    admin.html
+    config.js
+    styles.css
+    nitank_logo.jpeg
+    fontawesome/
+```
+
+העובד לוחץ פעמיים על `פתח ממשק הזמנות.bat` — הממשק נפתח בדפדפן.
+
+> שנה את שם `order-form-console.bat` ל-`פתח ממשק הזמנות.bat` לפני ההעלאה.
+
+לאחר כל עדכון של `config.js` - החלף את הקובץ בתיקיית `app` ב-SharePoint.
 
 ---
 

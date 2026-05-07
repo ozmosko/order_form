@@ -1,2 +1,2 @@
 @echo off
-start "" "%~dp0admin.html"
+start "" "%~dp0app\admin.html"
